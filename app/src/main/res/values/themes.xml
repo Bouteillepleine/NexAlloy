@@ -2,16 +2,27 @@
 
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <style name="MainTheme" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="p">true</item>
-        <item name="android:colorAccent">#1a73e9</item>
-        <item name="android:fitsSystemWindows">true</item>
+    <!--
+      One theme family, following the system.
+
+      MainTheme used to be Theme.Material.LIGHT with windowLightStatusBar hardcoded
+      true, while SettingsTheme inherited DeviceDefault (which follows the system) --
+      so on a phone in dark mode the launcher screen was white and the settings screen
+      dark, in the same app, one tap apart. DeviceDefault follows the system setting
+      and matches the OEM's own Settings look, which is what this screen sits beside.
+
+      Colours live in colors.xml so values-night can override them; the accent is
+      overridden again in values-v31 with the wallpaper palette (Material You).
+    -->
+    <style name="MainTheme" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:colorAccent">@color/nex_accent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-
-        <item name="android:textColorPrimary">@android:color/primary_text_light_nodisable</item>
-        <item name="android:textColorSecondary">@android:color/secondary_text_light_nodisable</item>
+        <!-- Insets are applied in code (WindowInsets) rather than by this flag: the
+             app targets SDK 37, where edge-to-edge is enforced and fitsSystemWindows
+             alone leaves content under the bars. -->
+        <item name="android:enforceStatusBarContrast" tools:targetApi="q">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
     </style>
 
     <style name="ListDividerNull">
@@ -19,10 +30,13 @@
     </style>
 
     <style name="SettingsTheme" parent="android:Theme.DeviceDefault.Settings">
-        <item name="android:fitsSystemWindows">true</item>
         <item name="android:singleLineTitle">false</item>
-
         <item name="android:listDivider">@null</item>
+        <item name="android:colorAccent">@color/nex_accent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="q">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
     </style>
 
 </resources>

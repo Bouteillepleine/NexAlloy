@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Night accent. Overridden again on Android 12+ by values-v31 with the
+         wallpaper palette. -->
+    <color name="nex_accent">#64B5F6</color>
+</resources>

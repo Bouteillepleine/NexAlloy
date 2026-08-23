@@ -15,4 +15,45 @@
     <string name="disable_auto_check_update_title">Disable auto update check</string>
     <string name="module_not_activated_summary">Activate this module in Module Management!</string>
     <string name="slogan_summary">ChsBuffer\'s LSPosed module, powered by Morphe, ReVanced, and beyond.\n\nThis is not an official Morphe or ReVanced project, do not ask their developers for help.</string>
+
+    <!-- Extracted from Kotlin so they can be translated like every other string.
+         The module's own UI was English-only while the patch UI ships 40+ locales. -->
+    <string name="morphe_attribution_summary">This app uses code from Morphe. To learn more, visit %1$s</string>
+    <string name="version_summary">Current version: %1$s (%2$s) %3$s\nBuild date: %4$s</string>
+
+    <!-- Header buttons, previously hardcoded in the layout. -->
+    <string name="button_default">Default</string>
+    <string name="button_none">None</string>
+    <string name="button_app_info">App info</string>
+
+    <!-- Empty / not-activated state -->
+    <string name="module_not_activated_title">Module not activated</string>
+    <string name="open_lsposed">Open LSPosed Manager</string>
+    <string name="lsposed_not_found">LSPosed Manager was not found on this device.</string>
+
+    <!-- Patch list -->
+    <string name="search_patches">Search patches</string>
+    <string name="menu_search">Search</string>
+    <string name="patch_changed_marker">Changed</string>
+    <string name="patches_enabled_summary">%1$d of %2$d patches on</string>
+    <string name="app_not_installed">Not installed on this device</string>
+    <string name="internal_patches_footer">%1$d internal patch(es) are always applied and are not listed here.</string>
+    <string name="no_patches_match">No patches match “%1$s”</string>
+
+    <!-- Bulk actions -->
+    <string name="confirm_none_title">Turn off every patch?</string>
+    <string name="confirm_none_message">This disables all %1$d patches for %2$s. Your current selection is not kept.</string>
+    <string name="confirm_none_ok">Turn all off</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Per-app master switch -->
+    <string name="app_patching_enabled_title">Patch this app</string>
+    <string name="app_patching_enabled_summary">Turn off to leave the app completely untouched, without losing your patch selection.</string>
+
+    <!-- Haptics -->
+    <string name="haptics_title">Vibrate on toggle</string>
+    <string name="haptics_summary">Short haptic feedback when switching a patch.</string>
+
+    <!-- Apply hint -->
+    <string name="apply_hint_summary">Changes apply when the app next starts. Use App info → Force stop.</string>
 </resources>

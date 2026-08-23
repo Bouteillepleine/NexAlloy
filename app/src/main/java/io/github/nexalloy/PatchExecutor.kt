@@ -44,14 +44,34 @@ fun patch(
     name: String = "",
     description: String = "",
     use: Boolean = true,
+    category: String? = null,
     func: PatchExecutor.() -> Unit
 ) =
-    Patch(name, description, use, func)
+    Patch(name, description, use, category, func)
+
+/**
+ * Preference key for the per-app master switch, shared between the settings UI and
+ * [PatchExecutor]. Deliberately prefixed so it cannot collide with a patch name.
+ */
+const val KEY_APP_PATCHING_ENABLED = "__nexalloy_app_patching_enabled"
+
+/** Preference key for the toggle haptic, read by the settings UI only. */
+const val KEY_HAPTICS_ENABLED = "__nexalloy_haptics_enabled"
 
 class Patch(
     val name: String,
     val description: String,
     val use: Boolean,
+    /**
+     * Optional grouping for the settings list, e.g. "Ads", "Feed", "Player".
+     *
+     * The in-app Morphe settings group patches this way; the module's own list was a
+     * single flat column of the same patches. Adding the field is what makes grouping
+     * possible without a flag day: the UI groups by category where one is set and
+     * falls back to a single list otherwise, so patches can be categorised as they
+     * are touched rather than all at once.
+     */
+    val category: String? = null,
     val run: PatchExecutor.() -> Unit
 )
 
@@ -215,6 +235,17 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
     }
 
     private fun executePatches() {
+        // Per-app master switch. There was no way to say "leave this app alone for
+        // now" short of clearing every patch one by one and losing the selection --
+        // which is the first thing anyone reaches for when working out whether the
+        // module is behind an app misbehaving. Defaults to on, so an app with no
+        // stored value behaves exactly as before.
+        if (patchPreferences?.getBoolean(KEY_APP_PATCHING_ENABLED, true) == false) {
+            XposedBridge.log(
+                "NexAlloy: patching disabled for ${lpparam.packageName} by its master switch"
+            )
+            return
+        }
         patches.forEach { hook ->
             if (appliedPatches.contains(hook)) return@forEach
             /**

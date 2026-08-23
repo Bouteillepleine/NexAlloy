@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material You: follow the wallpaper palette on Android 12+, so the module
+         matches the system surfaces it sits beside instead of a fixed 2018 blue. -->
+    <color name="nex_accent">@android:color/system_accent1_600</color>
+</resources>

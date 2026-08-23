@@ -1,17 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Intentionally empty.
 
-<resources xmlns:tools="http://schemas.android.com/tools">
-
-    <style name="MainTheme" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="p">false</item>
-        <item name="android:colorAccent">#64b5f6</item>
-        <item name="android:fitsSystemWindows">true</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-
-        <item name="android:textColorPrimary">@android:color/primary_text_dark_nodisable</item>
-        <item name="android:textColorSecondary">@android:color/secondary_text_dark_nodisable</item>
-    </style>
-
+      This file used to redefine MainTheme with a dark Material parent and a second
+      hardcoded accent (#64b5f6), which did work -- but it meant maintaining two
+      parallel theme definitions that could drift. MainTheme now inherits
+      android:Theme.DeviceDefault, which follows the system light/dark setting on its
+      own, so only the COLOURS need a night variant and those live in
+      values-night/colors.xml.
+    -->
 </resources>
