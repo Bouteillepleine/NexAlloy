@@ -169,12 +169,14 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
     /**
      * @see io.github.nexalloy.activity.AppPatchSettingsActivity.AppPatchSettingsFragment.onCreate
      * */
-    private val patchPreferences = XSharedPreferences(
+    private val patchPreferencesFile = XSharedPreferences(
         BuildConfig.APPLICATION_ID, lpparam.packageName
-    ).takeIf { it.file.canRead() }
+    )
+
+    private val patchPreferences = patchPreferencesFile.takeIf { it.file.canRead() }
 
     /**
-     * True when the user's per-patch choices could not be read.
+     * True only when the user's per-patch choices EXIST but could not be read.
      *
      * Every patch then falls back to its shipped default, which for most of them is
      * ON -- so a patch the user deliberately switched OFF gets applied anyway. That
@@ -182,8 +184,15 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
      * does nothing, also silently, is not better), so it is reported instead: once in
      * the log, and once on screen, because the visible symptom otherwise is "settings
      * do nothing" with no explanation anywhere.
+     *
+     * The `exists()` half matters. `canRead()` is false for a file that was never
+     * created, which is the normal state of every app whose patches the user has not
+     * customised -- reporting that as a failure fired the warning on a clean install
+     * and told people something was broken when nothing was. No file means no choices
+     * to lose, and the defaults are exactly right.
      */
-    private val preferencesUnreadable = patchPreferences == null
+    private val preferencesUnreadable =
+        patchPreferences == null && patchPreferencesFile.file.exists()
 
     private lateinit var patches: Array<Patch>
     private val appliedPatches = mutableSetOf<Patch>()
