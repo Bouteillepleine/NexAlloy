@@ -19,8 +19,18 @@ class FilePathArgumentsProvider : ArgumentsProvider {
         val projectDir = Paths.get(".") //.toAbsolutePath().normalize()
         val testInputPath = projectDir.resolve("binaries")
 
+        // Missing fixtures is a normal state, not a bug: the APKs are large and not
+        // redistributable, so a clean checkout has none. Throwing here surfaced as
+        // `initializationError` with the real cause buried, which reads like the test
+        // harness is broken rather than "there is nothing to test against". The Gradle
+        // test task skips execution entirely in that case (see app/build.gradle.kts);
+        // this empty stream is the belt to that braces.
         if (!Files.exists(testInputPath)) {
-            throw IllegalStateException("APKs folder not found: $testInputPath")
+            System.err.println(
+                "no APK fixtures at ${testInputPath.toAbsolutePath().normalize()} -- " +
+                    "nothing to fingerprint; drop target APKs there to run this suite."
+            )
+            return Stream.empty()
         }
 
         return Files.walk(testInputPath).filter { path ->

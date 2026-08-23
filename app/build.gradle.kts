@@ -163,8 +163,35 @@ kotlin {
         jvmTarget = JvmTarget.JVM_17
     }
 }
+// The fingerprint suite runs against REAL APKs dropped into <root>/binaries -- it
+// resolves every fingerprint against the actual app and is the thing that catches a
+// YouTube update breaking a patch. Those APKs are large and not redistributable, so
+// they are not in the repository, and with the folder absent JUnit fails the whole
+// parameterized class with `initializationError` for producing zero invocations.
+//
+// So: always COMPILE the tests (that alone catches harness drift against DexKit and
+// the patch APIs, and costs nothing), and EXECUTE them whenever fixtures are present.
+// CI is therefore green on a clean checkout and becomes a real gate the moment APKs
+// are supplied -- by a developer locally, or by a cache/artifact step here.
+val testFixtureDir: File = rootProject.file("binaries")
+
 tasks.withType<Test> {
     useJUnitPlatform()
+    onlyIf {
+        val apks = testFixtureDir.takeIf { it.isDirectory }
+            ?.walkTopDown()
+            ?.filter { it.isFile && !it.name.startsWith(".") }
+            ?.count() ?: 0
+        if (apks == 0) {
+            logger.lifecycle(
+                "NexAlloy: skipping $name -- no APKs in ${testFixtureDir.path}. " +
+                    "Drop target APKs there to run the fingerprint suite."
+            )
+        } else {
+            logger.lifecycle("NexAlloy: running $name against $apks APK(s)")
+        }
+        apks > 0
+    }
 }
 
 dependencies {
