@@ -2,7 +2,7 @@
 <!-- Static guidance text.
 
      These captions used to be Preference rows with isEnabled=false, which renders
-     them at disabled opacity -- so the text most worth reading was the least legible
+     them at disabled opacity — so the text most worth reading was the least legible
      on the screen, and talkback announced it as an unavailable control. This is a
      plain TextView at full contrast, not focusable, not a control. -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"

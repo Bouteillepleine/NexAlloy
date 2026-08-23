@@ -5,14 +5,16 @@
     <!--
       One theme family, following the system.
 
-      MainTheme used to be Theme.Material.LIGHT with windowLightStatusBar hardcoded
-      true, while SettingsTheme inherited DeviceDefault (which follows the system) --
-      so on a phone in dark mode the launcher screen was white and the settings screen
-      dark, in the same app, one tap apart. DeviceDefault follows the system setting
-      and matches the OEM's own Settings look, which is what this screen sits beside.
+      Dark mode DID work before this: values-night redefined MainTheme with a dark
+      Material parent. The cost was two full theme definitions to keep in step, each
+      with its own hardcoded accent (#1a73e9 light, #64b5f6 night), while SettingsTheme
+      inherited DeviceDefault — so the launcher screen was framework Material and the
+      settings screen was the OEM's Settings style, two design languages one tap apart.
 
-      Colours live in colors.xml so values-night can override them; the accent is
-      overridden again in values-v31 with the wallpaper palette (Material You).
+      Both now inherit DeviceDefault, which follows the system light/dark setting on its
+      own and matches the Settings surfaces this sits beside. That leaves only colours
+      to vary, so values-night carries the night accent and values-v31 the wallpaper
+      palette (Material You), instead of duplicated styles.
     -->
     <style name="MainTheme" parent="android:Theme.DeviceDefault.NoActionBar">
         <item name="android:colorAccent">@color/nex_accent</item>
