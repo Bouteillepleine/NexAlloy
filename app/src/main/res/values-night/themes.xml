@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-      Intentionally empty.
-
-      This file used to redefine MainTheme with a dark Material parent and a second
-      hardcoded accent (#64b5f6), which did work — but it meant maintaining two
-      parallel theme definitions that could drift. MainTheme now inherits
-      android:Theme.DeviceDefault, which follows the system light/dark setting on its
-      own, so only the COLOURS need a night variant and those live in
-      values-night/colors.xml.
-    -->
+    <!-- Intentionally empty: Theme.Material3.DayNight resolves light and dark itself,
+         so there is no second theme definition to keep in step. Only colours vary, and
+         those live in values-night/colors.xml. -->
 </resources>

@@ -263,7 +263,20 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
             val isEnabled = patchPreferences?.getBoolean(hook.name, hook.use) ?: hook.use
             if (!isEnabled) return@forEach // Pref Key
             runCatching { hook.run(this) }.onFailure { err ->
-                XposedBridge.log(err)
+                // One line, naming the patch. This used to be XposedBridge.log(err),
+                // which dumps the whole stack -- so a patch that no longer matches its
+                // target printed ~25 frames of R8-obfuscated trace into LSPosed's ERROR
+                // log on every single app start, for a failure that is already handled
+                // (it lands in failedPatches and is reported in the summary toast).
+                // The result read like a crash and identified nothing: the frames are
+                // all `c60.i`, `pc.h`, `tm.h`. The patch NAME is the one thing worth
+                // knowing, and it was the one thing missing.
+                XposedBridge.log(
+                    "NexAlloy: patch \"${hook.name}\" failed on ${lpparam.packageName}: " +
+                        "${err.javaClass.simpleName}: ${err.message}"
+                )
+                // The full trace is still there when explicitly debugging.
+                if (DEBUG) XposedBridge.log(err)
                 failedPatches.add(hook)
             }.onSuccess {
                 appliedPatches.add(hook)

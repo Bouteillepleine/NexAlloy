@@ -250,6 +250,11 @@ dependencies {
     compileOnly(project(":stub"))
     implementation(libs.androidx.javascriptengine)
     implementation(libs.protobuf.javalite)
+    // Settings UI only. These are loaded in the MODULE's own process, never in a
+    // hooked app -- MainHook and PatchExecutor touch none of them.
+    implementation(libs.androidx.appcompat)
+    implementation(libs.android.material)
+    implementation(libs.androidx.preference)
     implementation(libs.collections4)
     implementation(libs.lang3)
 }

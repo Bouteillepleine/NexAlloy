@@ -16,6 +16,12 @@ protoc = "4.35.0"
 collections4 = "4.5.0"
 lang3 = "3.20.0"
 
+# Settings UI: AndroidX Preference + Material 3, replacing the framework
+# android.preference stack that was deprecated at API 29.
+appcompat = "1.7.1"
+material = "1.13.0"
+preference = "1.2.1"
+
 
 [libraries]
 dexkit = { group = "org.luckypray", name = "dexkit", version.ref = "dexkit" }
@@ -32,6 +38,9 @@ protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protoc
 androidx-javascriptengine = { module = "androidx.javascriptengine:javascriptengine", version.ref = "androidx-javascriptengine" }
 collections4 = { module = "org.apache.commons:commons-collections4", version.ref = "collections4" }
 lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "lang3" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+android-material = { module = "com.google.android.material:material", version.ref = "material" }
+androidx-preference = { module = "androidx.preference:preference-ktx", version.ref = "preference" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

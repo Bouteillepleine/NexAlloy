@@ -1,44 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <resources xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-      One theme family, following the system.
+      Material 3, DayNight, dynamic colour.
 
-      Dark mode DID work before this: values-night redefined MainTheme with a dark
-      Material parent. The cost was two full theme definitions to keep in step, each
-      with its own hardcoded accent (#1a73e9 light, #64b5f6 night), while SettingsTheme
-      inherited DeviceDefault — so the launcher screen was framework Material and the
-      settings screen was the OEM's Settings style, two design languages one tap apart.
+      The module UI was built on the framework android.preference stack and framework
+      Material themes, both frozen since 2019. That is what made it look dated: fixed
+      row metrics, a hardcoded accent, and no way to reach Material 3. It now runs on
+      AndroidX Preference under Theme.Material3.DayNight, which follows the system
+      light/dark setting and, from Android 12, the wallpaper palette.
 
-      Both now inherit DeviceDefault, which follows the system light/dark setting on its
-      own and matches the Settings surfaces this sits beside. That leaves only colours
-      to vary, so values-night carries the night accent and values-v31 the wallpaper
-      palette (Material You), instead of duplicated styles.
+      preferenceTheme is what styles the AndroidX preference rows; without it they fall
+      back to unstyled defaults.
     -->
-    <style name="MainTheme" parent="android:Theme.DeviceDefault.NoActionBar">
-        <item name="android:colorAccent">@color/nex_accent</item>
+    <style name="MainTheme" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="preferenceTheme">@style/Preference.NexAlloy</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <!-- Insets are applied in code (WindowInsets) rather than by this flag: the
-             app targets SDK 37, where edge-to-edge is enforced and fitsSystemWindows
-             alone leaves content under the bars. -->
-        <item name="android:enforceStatusBarContrast" tools:targetApi="q">false</item>
-        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
+    </style>
+
+    <!-- The settings screens use the same theme; the old SettingsTheme inherited
+         DeviceDefault.Settings, a different design language one tap away from MainTheme. -->
+    <style name="SettingsTheme" parent="MainTheme" />
+
+    <style name="Preference.NexAlloy" parent="@style/PreferenceThemeOverlay">
+        <item name="preferenceCategoryTitleTextAppearance">
+            @style/TextAppearance.Material3.TitleSmall
+        </item>
+        <item name="preferenceCategoryTitleTextColor">?attr/colorPrimary</item>
     </style>
 
     <style name="ListDividerNull">
         <item name="android:listDivider">@null</item>
-    </style>
-
-    <style name="SettingsTheme" parent="android:Theme.DeviceDefault.Settings">
-        <item name="android:singleLineTitle">false</item>
-        <item name="android:listDivider">@null</item>
-        <item name="android:colorAccent">@color/nex_accent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:enforceStatusBarContrast" tools:targetApi="q">false</item>
-        <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
     </style>
 
 </resources>
