@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Search over a list that runs to dozens of entries. It was alphabetical and
-     nothing else, so finding a patch meant scrolling and reading. -->
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<!--
+  Search over a list that runs to dozens of entries.
+
+  Both attributes MUST come from the app: namespace, not android:. With an
+  AppCompat toolbar the framework reads android:actionViewClass/showAsAction, but
+  AppCompat reads its own app: ones; declaring the framework SearchView here while
+  the code casts to androidx.appcompat.widget.SearchView made the cast return null,
+  so the query listener was never attached and the icon did not render.
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/menu_search"
         android:title="@string/menu_search"
         android:icon="@android:drawable/ic_menu_search"
-        android:showAsAction="ifRoom|collapseActionView"
-        android:actionViewClass="android.widget.SearchView" />
+        app:showAsAction="ifRoom|collapseActionView"
+        app:actionViewClass="androidx.appcompat.widget.SearchView" />
 </menu>
