@@ -73,7 +73,15 @@ private const val LAST_CHECK_KEY = "last_update_check_ms"
 @Volatile
 private var checkedThisProcess = false
 
-class UpdateChecker() : CoroutineScope {
+/**
+ * @param appContext the Application, when one is available at construction.
+ *
+ * Needed because [hookNewActivity] runs inside `Instrumentation.newActivity`, where the
+ * Activity has been CONSTRUCTED but not yet attached -- its base context is still null,
+ * so touching `activity.applicationContext` there throws NPE straight out of the hooker
+ * and into `performLaunchActivity`. Read the throttle from the Application instead.
+ */
+class UpdateChecker(private val appContext: android.content.Context? = null) : CoroutineScope {
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + CoroutineExceptionHandler { _, err ->
             Logger.printException({ "coroutineContext error" }, err)
@@ -109,24 +117,30 @@ class UpdateChecker() : CoroutineScope {
         if (checkedThisProcess) return
         checkedThisProcess = true
 
-        // Throttle state lives in the CURRENT process's own private prefs: inside a
-        // hooked app the module's own preferences are XSharedPreferences, which is
-        // read-only there, so the timestamp could not be written back.
-        val prefs = currentActivity.get()
-            ?.applicationContext
-            ?.getSharedPreferences("nexalloy_update", android.content.Context.MODE_PRIVATE)
-        val now = System.currentTimeMillis()
-        val last = prefs?.getLong(LAST_CHECK_KEY, 0L) ?: 0L
-        // `last > now` catches a clock that moved backwards, which would otherwise
-        // suppress every future check.
-        if (last in 1..now && now - last < CHECK_INTERVAL_MS) {
-            Logger.printDebug { "update check skipped, last was ${(now - last) / 1000}s ago" }
-            return
-        }
-        prefs?.edit()?.putLong(LAST_CHECK_KEY, now)?.apply()
+        // Everything here runs inside an Xposed hook on activity creation, so nothing
+        // may throw: an escaping exception lands in performLaunchActivity, i.e. in the
+        // HOST app's startup path, for the sake of an update check.
+        runCatching {
+            // Throttle state lives in the CURRENT process's own private prefs: inside a
+            // hooked app the module's own preferences are XSharedPreferences, which is
+            // read-only there, so the timestamp could not be written back.
+            //
+            // Deliberately NOT currentActivity.applicationContext -- see the class doc.
+            val prefs = appContext
+                ?.getSharedPreferences("nexalloy_update", android.content.Context.MODE_PRIVATE)
+            val now = System.currentTimeMillis()
+            val last = prefs?.getLong(LAST_CHECK_KEY, 0L) ?: 0L
+            // `last > now` catches a clock that moved backwards, which would otherwise
+            // suppress every future check.
+            if (last in 1..now && now - last < CHECK_INTERVAL_MS) {
+                Logger.printDebug { "update check skipped, last was ${(now - last) / 1000}s ago" }
+                return
+            }
+            prefs?.edit()?.putLong(LAST_CHECK_KEY, now)?.apply()
 
-        Logger.printInfo { "start auto check update." }
-        runCatching { checkUpdate() }
+            Logger.printInfo { "start auto check update." }
+            checkUpdate()
+        }.onFailure { Logger.printException({ "autoCheckUpdate error" }, it) }
     }
 
     fun checkUpdate(silent: Boolean = true) {

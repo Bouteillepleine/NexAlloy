@@ -88,7 +88,9 @@ fun inContext(lpparam: LoadPackageParam, f: (Application) -> Unit) {
             if (XposedInit.modulePath.startsWith("/data/app/")) {
                 val prefs = XSharedPreferences(BuildConfig.APPLICATION_ID, "prefs")
                 if (!prefs.file.canRead() || !prefs.getBoolean("disable_auto_check_update", false)) {
-                    UpdateChecker().hookNewActivity()
+                    // Pass the Application: the hook fires before the new Activity is
+                    // attached, so its own context is not usable there.
+                    UpdateChecker(app).hookNewActivity()
                 }
             }
         }
