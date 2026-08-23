@@ -3,4 +3,5 @@
     <!-- Night accent. Overridden again on Android 12+ by values-v31 with the
          wallpaper palette. -->
     <color name="nex_accent">#64B5F6</color>
+    <color name="nex_caption">#C9C9D3</color>
 </resources>

@@ -2,26 +2,24 @@
 <!--
   Static guidance text.
 
-  These captions used to be Preference rows with isEnabled=false, which renders them
-  at disabled opacity, so the text most worth reading was the least legible and
-  talkback announced it as an unavailable control. This is a plain TextView instead.
+  Captions used to be Preference rows with isEnabled=false, which renders them at
+  disabled opacity, so the text most worth reading was the least legible.
 
-  Colours come from the MATERIAL attrs, not the android: ones. Under
-  Theme.Material3.DayNight, ?android:attr/textColorSecondary does not resolve to a
-  legible colour on the M3 dark surface: the row bound and took up its full height
-  while the text itself was invisible, which read as a mysterious blank gap in the
-  middle of the list.
+  The colour is an explicit resource, NOT a theme attribute. Preference rows are
+  inflated with the context carrying PreferenceThemeOverlay, which is not a Material 3
+  theme: ?attr/colorOnSurfaceVariant (and ?android:attr/textColorSecondary before it)
+  failed to resolve there, so the row bound at full height with invisible text — a
+  mysterious blank gap in the middle of the list. values-night supplies the dark variant.
 -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/caption_text"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingStart="?attr/listPreferredItemPaddingStart"
-    android:paddingEnd="?attr/listPreferredItemPaddingEnd"
+    android:paddingStart="24dp"
+    android:paddingEnd="24dp"
     android:paddingTop="10dp"
     android:paddingBottom="10dp"
-    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-    android:textColor="?attr/colorOnSurfaceVariant"
+    android:textSize="14sp"
+    android:textColor="@color/nex_caption"
     android:focusable="false"
     android:clickable="false" />

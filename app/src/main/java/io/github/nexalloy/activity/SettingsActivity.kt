@@ -117,17 +117,22 @@ class SettingsActivity : AppCompatActivity() {
 
     class SettingsFragment : PreferenceFragmentCompat() {
 
-        private fun caption(ctx: Context, text: CharSequence) =
-            object : Preference(ctx) {
-                override fun onBindViewHolder(holder: PreferenceViewHolder) {
-                    super.onBindViewHolder(holder)
-                    (holder.findViewById(R.id.caption_text) as? TextView)?.text = text
-                }
-            }.apply {
-                layoutResource = R.layout.preference_caption
-                isSelectable = false
-                isIconSpaceReserved = false
-            }
+        /**
+         * Static guidance text.
+         *
+         * A plain Preference carrying only a summary, NOT disabled: isEnabled=false was
+         * the original bug (disabled opacity made the most useful text the least
+         * legible), and a custom layout was the second attempt -- it bound at full
+         * height with invisible text, because preference rows are inflated with the
+         * PreferenceThemeOverlay context where the Material 3 colour attributes do not
+         * resolve. isSelectable=false keeps it non-interactive while the summary is
+         * themed by AndroidX exactly like every other row.
+         */
+        private fun caption(ctx: Context, text: CharSequence) = Preference(ctx).apply {
+            summary = text
+            isSelectable = false
+            isIconSpaceReserved = false
+        }
 
         private fun AppPatchInfo.getPreference(ctx: Context): Preference {
             val preference = Preference(ctx)
