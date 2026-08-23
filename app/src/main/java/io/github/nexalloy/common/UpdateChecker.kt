@@ -25,7 +25,6 @@ import kotlinx.coroutines.launch
 import kotlinx.io.readString
 import java.lang.ref.WeakReference
 import kotlin.coroutines.CoroutineContext
-import kotlin.random.Random
 
 data class ReleaseInfo(
     @SerializedName("tag_name") val tagName: String,
@@ -54,9 +53,25 @@ data class VersionInfo(val versionCode: Int, val versionName: String) {
     }
 }
 
-const val OWNER = "NexAlloy"
-const val REPO = "NexAlloy"
+/** Set from `-PupdateOwner` / `-PupdateRepo` at build time; see app/build.gradle.kts. */
+const val OWNER = BuildConfig.UPDATE_OWNER
+const val REPO = BuildConfig.UPDATE_REPO
 const val currentVersionCode = BuildConfig.VERSION_CODE
+
+/**
+ * Don't check more than once a day, and only once per process.
+ *
+ * This used to be `Random.nextInt(0, 10) != 0`, hooked onto `Instrumentation.newActivity`
+ * -- so it fired per ACTIVITY creation, not per launch, at a 10% chance each time. The
+ * interval was unbounded in both directions: several checks in one session, or none for
+ * a week. Each one is a request to api.github.com egressing from the HOOKED app's
+ * process, which is an odd thing for that app to be seen doing.
+ */
+private const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
+private const val LAST_CHECK_KEY = "last_update_check_ms"
+
+@Volatile
+private var checkedThisProcess = false
 
 class UpdateChecker() : CoroutineScope {
     override val coroutineContext: CoroutineContext
@@ -91,7 +106,25 @@ class UpdateChecker() : CoroutineScope {
     }
 
     fun autoCheckUpdate() {
-        if (Random.nextInt(0, 10) != 0) return
+        if (checkedThisProcess) return
+        checkedThisProcess = true
+
+        // Throttle state lives in the CURRENT process's own private prefs: inside a
+        // hooked app the module's own preferences are XSharedPreferences, which is
+        // read-only there, so the timestamp could not be written back.
+        val prefs = currentActivity.get()
+            ?.applicationContext
+            ?.getSharedPreferences("nexalloy_update", android.content.Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val last = prefs?.getLong(LAST_CHECK_KEY, 0L) ?: 0L
+        // `last > now` catches a clock that moved backwards, which would otherwise
+        // suppress every future check.
+        if (last in 1..now && now - last < CHECK_INTERVAL_MS) {
+            Logger.printDebug { "update check skipped, last was ${(now - last) / 1000}s ago" }
+            return
+        }
+        prefs?.edit()?.putLong(LAST_CHECK_KEY, now)?.apply()
+
         Logger.printInfo { "start auto check update." }
         runCatching { checkUpdate() }
     }

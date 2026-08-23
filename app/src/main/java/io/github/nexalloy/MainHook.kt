@@ -36,6 +36,13 @@ class MainHook : IXposedHookLoadPackage, IXposedHookZygoteInit {
         inContext(lpparam) { app ->
             this.app = app
             if (isReVancedPatched(lpparam)) {
+                // A toast is easy to miss, and nothing else recorded this -- so the
+                // symptom was "the module is installed and does nothing", with no
+                // trace to find later. Log it too.
+                XposedBridge.log(
+                    "NexAlloy: ${lpparam.packageName} already carries ReVanced/Morphe " +
+                        "integrations; skipping to avoid double-patching."
+                )
                 Utils.showToastLong("NexAlloy module does not work with patched app")
                 return@inContext
             }

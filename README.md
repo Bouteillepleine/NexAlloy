@@ -2,7 +2,7 @@
   <h1>NexAlloy</h1>
   <a href="https://discord.gg/QWUrAA2mKq"><img alt="Discord Server" src="https://img.shields.io/badge/Discord%20Server-5865F2.svg?logo=discord&logoColor=white"></a>
   <a href="https://t.me/revancedxposed"><img alt="Telegram Channel" src="https://img.shields.io/badge/Telegram_Channel-blue.svg?logo=telegram&logoColor=white"></a>
-  <a href="https://github.com/NexAlloy/NexAlloy/releases/latest"><img alt="GitHub Downloads" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fshields.chsbuffer.workers.dev%2F%3Frepos%3DNexAlloy%2FNexAlloy%26cacheSeconds%3D3600"></a>
+  <a href="https://github.com/Bouteillepleine/NexAlloy/releases/latest"><img alt="GitHub Downloads" src="https://img.shields.io/github/downloads/Bouteillepleine/NexAlloy/total"></a>
   <a href="https://github.com/NexAlloy/NexAlloy"><img alt="GitHub Stars" src="https://img.shields.io/github/stars/NexAlloy/NexAlloy"></a>  
   <br>
 </div>
@@ -12,6 +12,17 @@
 > **Migration Notice:** This project has evolved from **ReVancedXposed** to **NexAlloy**. 
 > 
 > **Upgrading:** We’ve kept the original Package ID for your convenience. You can install this as an update, but **you must manually export your settings from the old version and import them into the new one** to keep your configuration.
+
+> [!NOTE]
+> **This is a fork** of [NexAlloy/NexAlloy](https://github.com/NexAlloy/NexAlloy), building from
+> `Bouteillepleine/NexAlloy`. Two consequences worth knowing:
+>
+> - The **package name stays `io.github.chsbuffer.revancedxposed`** (inherited from upstream, kept so
+>   existing installs update in place). So the app id matches neither this repository nor the icon
+>   label, and this build, upstream's, and any other fork are mutually exclusive installs.
+> - Builds here are **signed with a different key** than upstream's. Android will refuse to install
+>   one over the other; switching between them requires uninstalling first, which loses settings.
+>   The in-app updater therefore points at this fork, not upstream.
 
 >[!IMPORTANT]  
 > - This is **NOT an official Morphe or ReVanced project**, do not ask their developers for help.  

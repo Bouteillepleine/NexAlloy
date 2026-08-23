@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - '*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -13,12 +17,13 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       with:
         submodules: true
+        fetch-depth: 0
 
     - name: set up JDK
-      uses: actions/setup-java@v5
+      uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
       with:
         java-version: '17'
         distribution: 'temurin'
@@ -27,20 +32,59 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Verify vendored binaries
+      run: ./scripts/verify-libs.sh
+
+    - name: Test
+      run: ./gradlew test
+
+    # Secrets go through the environment and are quoted on use. Interpolating
+    # `${{ secrets.X }}` straight into a shell line lets GitHub substitute the value
+    # BEFORE the shell parses it, so a space, glob or backtick in a secret is
+    # word-split, expanded or executed. A release with no keystore configured stops
+    # here with a clear message instead of failing deep inside Gradle.
     - name: Write key
+      env:
+        KEYSTORE: ${{ secrets.KEYSTORE }}
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
+        KEYSTORE_ALIAS_PASSWORD: ${{ secrets.KEYSTORE_ALIAS_PASSWORD }}
       run: |
-        echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} > signing.properties
-        echo KEYSTORE_ALIAS=${{ secrets.KEYSTORE_ALIAS }} >> signing.properties
-        echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
-        echo KEYSTORE_FILE=../key.jks >> signing.properties
-        echo ${{ secrets.KEYSTORE }} | base64 --decode > key.jks
+        set -euo pipefail
+        if [ -z "${KEYSTORE:-}" ]; then
+          echo "::error::No KEYSTORE secret is configured on this repository."
+          echo "::error::A tagged release must be signed. Set KEYSTORE, KEYSTORE_PASSWORD,"
+          echo "::error::KEYSTORE_ALIAS and KEYSTORE_ALIAS_PASSWORD, or build from main instead."
+          exit 1
+        fi
+        printf '%s\n' "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}" > signing.properties
+        printf '%s\n' "KEYSTORE_ALIAS=${KEYSTORE_ALIAS}" >> signing.properties
+        printf '%s\n' "KEYSTORE_ALIAS_PASSWORD=${KEYSTORE_ALIAS_PASSWORD}" >> signing.properties
+        printf '%s\n' "KEYSTORE_FILE=key.jks" >> signing.properties
+        printf '%s' "$KEYSTORE" | base64 --decode > key.jks
+        test -s key.jks || { echo "::error::decoded keystore is empty"; exit 1; }
 
     - name: Build Release
       run: ./gradlew assembleRelease
 
-    - run: |
+    - name: Confirm the APK is release-signed
+      run: |
+        set -euo pipefail
+        APK=app/build/outputs/apk/release/app-release.apk
+        SIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+        "$SIGNER" verify --print-certs "$APK" | grep -i "Signer #1 certificate SHA-256" \
+          || { echo "::error::could not read the APK signature"; exit 1; }
+
+    - name: Publish
+      run: |
+        set -euo pipefail
         cd app/build/outputs/apk/release/
-        mv app-release.apk NexAlloy-${{ github.ref_name }}.apk
-        gh release create --prerelease ${{ github.ref_name }} NexAlloy-${{ github.ref_name }}.apk
+        mv app-release.apk "NexAlloy-${GITHUB_REF_NAME}.apk"
+        gh release create --prerelease "${GITHUB_REF_NAME}" "NexAlloy-${GITHUB_REF_NAME}.apk"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Runs even when a step above failed, so the key never outlives the job.
+    - name: Remove key material
+      if: always()
+      run: rm -f key.jks signing.properties

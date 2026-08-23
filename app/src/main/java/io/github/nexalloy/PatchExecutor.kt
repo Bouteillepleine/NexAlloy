@@ -153,6 +153,18 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
         BuildConfig.APPLICATION_ID, lpparam.packageName
     ).takeIf { it.file.canRead() }
 
+    /**
+     * True when the user's per-patch choices could not be read.
+     *
+     * Every patch then falls back to its shipped default, which for most of them is
+     * ON -- so a patch the user deliberately switched OFF gets applied anyway. That
+     * used to happen silently. It cannot be fixed by refusing to patch (a module that
+     * does nothing, also silently, is not better), so it is reported instead: once in
+     * the log, and once on screen, because the visible symptom otherwise is "settings
+     * do nothing" with no explanation anywhere.
+     */
+    private val preferencesUnreadable = patchPreferences == null
+
     private lateinit var patches: Array<Patch>
     private val appliedPatches = mutableSetOf<Patch>()
     private val failedPatches = mutableListOf<Patch>()
@@ -221,6 +233,17 @@ class PatchExecutor(val appContext: Application, val lpparam: LoadPackageParam) 
 
     private fun finalizePatching() {
         cache.saveCache()
+        if (preferencesUnreadable) {
+            XposedBridge.log(
+                "NexAlloy: could not read patch preferences for ${lpparam.packageName} " +
+                    "(${BuildConfig.APPLICATION_ID}/${lpparam.packageName}.xml is unreadable). " +
+                    "Every patch used its default state, so per-patch settings had no effect."
+            )
+            Utils.showToastLong(
+                "NexAlloy: patch settings unreadable — defaults applied. Open the module " +
+                    "settings once, then force stop ${lpparam.packageName}."
+            )
+        }
         val success = failedPatches.isEmpty()
         if (!success) {
             XposedBridge.log("${lpparam.appInfo.packageName} version: ${getAppVersion()}")

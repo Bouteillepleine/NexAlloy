@@ -34,6 +34,16 @@ android {
         buildConfigField("String", "PATCH_VERSION", "\"$patchVersion\"")
         buildConfigField("String", "COMMIT_HASH", "\"${gitCommitHashProvider.get().trim()}\"")
         buildConfigField("long", "COMMIT_DATE", "${gitCommitDateProvider.get().trim()}L")
+
+        // Where the in-app updater looks for releases. These were hardcoded to the
+        // upstream org, so a fork built and installed from here offered upstream's
+        // APK -- which shares this applicationId but is signed with a different key,
+        // so Android refuses the install and the dialog leads nowhere. Override with
+        // -PupdateOwner=... -PupdateRepo=... or in gradle.properties.
+        val updateOwner = (findProperty("updateOwner") as String?) ?: "Bouteillepleine"
+        val updateRepo = (findProperty("updateRepo") as String?) ?: "NexAlloy"
+        buildConfigField("String", "UPDATE_OWNER", "\"$updateOwner\"")
+        buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
     }
     androidResources {
         additionalParameters += arrayOf("--allow-reserved-package-id", "--package-id", "0x4b")
@@ -45,18 +55,35 @@ android {
             )
         )
     }
+    // Release signing is OPTIONAL, and deliberately so.
+    //
+    // CI used to write signing.properties unconditionally, so on a fork with no
+    // KEYSTORE secret the file existed, every value in it was the empty string and
+    // key.jks was zero bytes -- which produced a release signing config that could
+    // only fail, several minutes into the build. Presence of the file is therefore
+    // not enough: the values have to be populated and the keystore has to be a real
+    // file. When it isn't, fall back to the debug key so the artifact is still
+    // installable for testing rather than an unsigned APK nobody can use.
     val ksFile = rootProject.file("signing.properties")
-    signingConfigs {
-        if (ksFile.exists()) {
-            create("release") {
-                val properties = Properties().apply {
-                    ksFile.inputStream().use { load(it) }
-                }
+    val ksProps = Properties().apply {
+        if (ksFile.exists()) ksFile.inputStream().use { load(it) }
+    }
+    fun prop(name: String) = (ksProps[name] as String?)?.trim().orEmpty()
+    val ksStore = prop("KEYSTORE_FILE").takeIf { it.isNotEmpty() }?.let { rootProject.file(it) }
+    val hasReleaseKey = ksStore != null &&
+        ksStore.isFile &&
+        ksStore.length() > 0 &&
+        prop("KEYSTORE_PASSWORD").isNotEmpty() &&
+        prop("KEYSTORE_ALIAS").isNotEmpty() &&
+        prop("KEYSTORE_ALIAS_PASSWORD").isNotEmpty()
 
-                storePassword = properties["KEYSTORE_PASSWORD"] as String
-                keyAlias = properties["KEYSTORE_ALIAS"] as String
-                keyPassword = properties["KEYSTORE_ALIAS_PASSWORD"] as String
-                storeFile = file(properties["KEYSTORE_FILE"] as String)
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storePassword = prop("KEYSTORE_PASSWORD")
+                keyAlias = prop("KEYSTORE_ALIAS")
+                keyPassword = prop("KEYSTORE_ALIAS_PASSWORD")
+                storeFile = ksStore
             }
         }
     }
@@ -68,8 +95,15 @@ android {
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
-            if (ksFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.lifecycle(
+                    "NexAlloy: no usable release keystore -- signing the release build with " +
+                        "the debug key. It will install for testing but cannot update a " +
+                        "release-signed install."
+                )
+                signingConfigs.getByName("debug")
             }
         }
     }
