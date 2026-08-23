@@ -44,7 +44,7 @@ jobs:
     # fallback in app/build.gradle.kts; only release.yml (tags) uses the real key.
 
     - name: Verify vendored binaries
-      run: ./scripts/verify-libs.sh
+      run: bash scripts/verify-libs.sh
 
     - name: Test
       run: ./gradlew test

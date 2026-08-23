@@ -33,7 +33,7 @@ jobs:
       run: chmod +x gradlew
 
     - name: Verify vendored binaries
-      run: ./scripts/verify-libs.sh
+      run: bash scripts/verify-libs.sh
 
     - name: Test
       run: ./gradlew test
