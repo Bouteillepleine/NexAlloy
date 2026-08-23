@@ -173,10 +173,11 @@ kotlin {
 // the patch APIs, and costs nothing), and EXECUTE them whenever fixtures are present.
 // CI is therefore green on a clean checkout and becomes a real gate the moment APKs
 // are supplied -- by a developer locally, or by a cache/artifact step here.
-// Decided at CONFIGURATION time and captured as a plain Boolean. Doing the check
-// inside onlyIf {} instead reaches for `logger` and `name`, which are references to
-// the script and the task -- neither is serializable, so the configuration cache
-// rejects the build outright ("cannot serialize Gradle script object references").
+// Decided at CONFIGURATION time and applied as `enabled`, NOT via `onlyIf {}`. An
+// onlyIf lambda written in a .gradle.kts is itself a reference to the script object,
+// which the configuration cache cannot serialize -- it rejects the build with
+// "cannot serialize Gradle script object references" no matter how little the lambda
+// captures. Setting a plain Boolean property has no such problem.
 val testFixtureDir: File = rootProject.file("binaries")
 val testFixtureCount: Int = testFixtureDir.takeIf { it.isDirectory }
     ?.walkTopDown()
@@ -195,7 +196,7 @@ if (hasTestFixtures) {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    onlyIf { hasTestFixtures }
+    enabled = hasTestFixtures
 }
 
 dependencies {
