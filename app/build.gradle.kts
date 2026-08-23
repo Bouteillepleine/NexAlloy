@@ -173,25 +173,29 @@ kotlin {
 // the patch APIs, and costs nothing), and EXECUTE them whenever fixtures are present.
 // CI is therefore green on a clean checkout and becomes a real gate the moment APKs
 // are supplied -- by a developer locally, or by a cache/artifact step here.
+// Decided at CONFIGURATION time and captured as a plain Boolean. Doing the check
+// inside onlyIf {} instead reaches for `logger` and `name`, which are references to
+// the script and the task -- neither is serializable, so the configuration cache
+// rejects the build outright ("cannot serialize Gradle script object references").
 val testFixtureDir: File = rootProject.file("binaries")
+val testFixtureCount: Int = testFixtureDir.takeIf { it.isDirectory }
+    ?.walkTopDown()
+    ?.count { it.isFile && !it.name.startsWith(".") }
+    ?: 0
+val hasTestFixtures = testFixtureCount > 0
+
+if (hasTestFixtures) {
+    logger.lifecycle("NexAlloy: fingerprint suite will run against $testFixtureCount APK(s)")
+} else {
+    logger.lifecycle(
+        "NexAlloy: no APKs in ${testFixtureDir.path} -- the fingerprint suite will be " +
+            "compiled but not executed. Drop target APKs there to run it."
+    )
+}
 
 tasks.withType<Test> {
     useJUnitPlatform()
-    onlyIf {
-        val apks = testFixtureDir.takeIf { it.isDirectory }
-            ?.walkTopDown()
-            ?.filter { it.isFile && !it.name.startsWith(".") }
-            ?.count() ?: 0
-        if (apks == 0) {
-            logger.lifecycle(
-                "NexAlloy: skipping $name -- no APKs in ${testFixtureDir.path}. " +
-                    "Drop target APKs there to run the fingerprint suite."
-            )
-        } else {
-            logger.lifecycle("NexAlloy: running $name against $apks APK(s)")
-        }
-        apks > 0
-    }
+    onlyIf { hasTestFixtures }
 }
 
 dependencies {
