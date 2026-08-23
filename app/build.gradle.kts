@@ -81,6 +81,19 @@ android {
         prop("KEYSTORE_ALIAS").isNotEmpty() &&
         prop("KEYSTORE_ALIAS_PASSWORD").isNotEmpty()
 
+    // Stable identity for unsigned-by-secret builds.
+    //
+    // Falling back to the DEBUG key looked fine until you tried to update: CI runners
+    // generate a fresh ~/.android/debug.keystore per job, so consecutive nightlies were
+    // signed by different identities (93c73027… then 9d5e2818…) and Android refused
+    // every in-place update. This keystore is committed on purpose and its password is
+    // public — it is not a secret and grants nothing except the ability to build an APK
+    // that can update a NIGHTLY install. Tagged releases use the real key from secrets;
+    // if you care about the nightly channel being un-impersonable, set up the release
+    // key and stop publishing nightlies.
+    val nightlyStore = rootProject.file("nightly.keystore")
+    val hasNightlyKey = nightlyStore.isFile && nightlyStore.length() > 0
+
     signingConfigs {
         if (hasReleaseKey) {
             create("release") {
@@ -88,6 +101,14 @@ android {
                 keyAlias = prop("KEYSTORE_ALIAS")
                 keyPassword = prop("KEYSTORE_ALIAS_PASSWORD")
                 storeFile = ksStore
+            }
+        }
+        if (!hasReleaseKey && hasNightlyKey) {
+            create("nightly") {
+                storeFile = nightlyStore
+                storePassword = "nexalloy-nightly"
+                keyAlias = "nightly"
+                keyPassword = "nexalloy-nightly"
             }
         }
     }
@@ -99,15 +120,24 @@ android {
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
-            signingConfig = if (hasReleaseKey) {
-                signingConfigs.getByName("release")
-            } else {
-                logger.lifecycle(
-                    "NexAlloy: no usable release keystore -- signing the release build with " +
-                        "the debug key. It will install for testing but cannot update a " +
-                        "release-signed install."
-                )
-                signingConfigs.getByName("debug")
+            signingConfig = when {
+                hasReleaseKey -> signingConfigs.getByName("release")
+                hasNightlyKey -> {
+                    logger.lifecycle(
+                        "NexAlloy: no release keystore; signing with the committed nightly " +
+                            "key. Installs and updates other nightlies, but cannot update a " +
+                            "release-signed install."
+                    )
+                    signingConfigs.getByName("nightly")
+                }
+                else -> {
+                    logger.lifecycle(
+                        "NexAlloy: no release or nightly keystore; falling back to the debug " +
+                            "key. NOTE: CI generates a new debug key per run, so consecutive " +
+                            "builds will not update each other."
+                    )
+                    signingConfigs.getByName("debug")
+                }
             }
         }
     }
