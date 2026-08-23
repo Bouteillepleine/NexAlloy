@@ -1,0 +1,24 @@
+# Files executed by CI or by a shell MUST keep LF endings regardless of the platform
+# they were edited on. A CRLF shebang line fails on Linux with the unhelpful
+# "bad interpreter: /usr/bin/env bash^M", and a CRLF YAML scalar silently carries the
+# \r into whatever the step runs.
+*.sh            text eol=lf
+gradlew         text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.sha256        text eol=lf
+*.properties    text eol=lf
+
+# Windows-side scripts keep CRLF.
+*.bat           text eol=crlf
+gradlew.bat     text eol=crlf
+
+# Never let the vendored prebuilts be line-ending "normalised" -- that would corrupt
+# them and break scripts/verify-libs.sh.
+*.jar           binary
+*.aar           binary
+*.so            binary
+*.png           binary
+*.apk           binary
+*.keystore      binary
+*.jks           binary
