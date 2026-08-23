@@ -21,6 +21,16 @@ val gitCommitDateProvider = providers.exec {
     workingDir = rootProject.rootDir
 }.standardOutput.asText!!
 
+// Which repository the in-app updater polls. Hardcoded to the upstream org before, so
+// a fork built from here offered upstream's APK -- same applicationId, different signing
+// key, so Android refuses the install and the dialog leads nowhere. Resolved at the
+// script level rather than inside defaultConfig, where `findProperty` resolves through
+// an enclosing scope rather than the block's own receiver.
+val updateOwner = (project.findProperty("updateOwner") as String?)?.takeIf { it.isNotBlank() }
+    ?: "Bouteillepleine"
+val updateRepo = (project.findProperty("updateRepo") as String?)?.takeIf { it.isNotBlank() }
+    ?: "NexAlloy"
+
 android {
     namespace = "io.github.nexalloy"
 
@@ -35,13 +45,7 @@ android {
         buildConfigField("String", "COMMIT_HASH", "\"${gitCommitHashProvider.get().trim()}\"")
         buildConfigField("long", "COMMIT_DATE", "${gitCommitDateProvider.get().trim()}L")
 
-        // Where the in-app updater looks for releases. These were hardcoded to the
-        // upstream org, so a fork built and installed from here offered upstream's
-        // APK -- which shares this applicationId but is signed with a different key,
-        // so Android refuses the install and the dialog leads nowhere. Override with
-        // -PupdateOwner=... -PupdateRepo=... or in gradle.properties.
-        val updateOwner = (findProperty("updateOwner") as String?) ?: "Bouteillepleine"
-        val updateRepo = (findProperty("updateRepo") as String?) ?: "NexAlloy"
+        // Where the in-app updater looks for releases; see updateOwner/updateRepo above.
         buildConfigField("String", "UPDATE_OWNER", "\"$updateOwner\"")
         buildConfigField("String", "UPDATE_REPO", "\"$updateRepo\"")
     }
