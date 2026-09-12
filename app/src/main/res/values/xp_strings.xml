@@ -22,9 +22,8 @@
     <string name="module_not_activated_title">Module not activated</string>
     <string name="powered_by_morphe_summary">This app uses code from Morphe. To learn more, visit https://morphe.software</string>
     <string name="faq_summary">Read this before reporting an issue.</string>
-    <string name="patch_count_summary">%1$d of %2$d patches enabled</string>
-    <string name="patch_count_summary_none">No patches enabled · %1$d available</string>
-    <string name="app_not_installed_with_count">Not installed · %1$d patches available</string>
+    <string name="patch_count_summary_none">No patches enabled · %1$s</string>
+    <string name="app_not_installed_with_count">Not installed · %1$s</string>
     <string name="version_summary_short">Version %1$s (%2$s) %3$s</string>
     <string name="version_summary_built">%1$s\nBuilt %2$s</string>
 

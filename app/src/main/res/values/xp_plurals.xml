@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="patch_count_available">
+        <item quantity="one">%1$d patch available</item>
+        <item quantity="other">%1$d patches available</item>
+    </plurals>
+    <plurals name="patch_count_enabled">
+        <item quantity="one">%1$d of %2$d patch enabled</item>
+        <item quantity="other">%1$d of %2$d patches enabled</item>
+    </plurals>
+</resources>

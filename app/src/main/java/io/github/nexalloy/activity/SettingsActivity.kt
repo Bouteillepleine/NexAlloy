@@ -270,19 +270,21 @@ class SettingsActivity : Activity(), SettingApplication.ServiceStateListener {
             return Preference(context).apply {
                 title = appName
                 key = packageName
+                val available = resources.getQuantityString(
+                    R.plurals.patch_count_available, selectable.size, selectable.size
+                )
                 summary = when {
-                    !installed -> getString(
-                        R.string.app_not_installed_with_count, selectable.size
-                    )
+                    !installed ->
+                        getString(R.string.app_not_installed_with_count, available)
 
                     else -> {
                         val enabled = selectable.count { patch ->
                             prefs?.getBoolean(patch.name, patch.use) ?: patch.use
                         }
                         if (enabled == 0) getString(
-                            R.string.patch_count_summary_none, selectable.size
-                        ) else getString(
-                            R.string.patch_count_summary, enabled, selectable.size
+                            R.string.patch_count_summary_none, available
+                        ) else resources.getQuantityString(
+                            R.plurals.patch_count_enabled, selectable.size, enabled, selectable.size
                         )
                     }
                 }
