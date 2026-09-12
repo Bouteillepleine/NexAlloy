@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "MyNexAlloy" ]
   pull_request:
     branches: [ "main" ]
 
@@ -16,6 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # The secrets context is not available in a step-level `if`, so surface the one fact the
+    # steps need as a job-level env var.
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE != '' }}
 
     steps:
     - uses: actions/checkout@v6
@@ -34,10 +38,10 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    # Secrets are not exposed to pull requests from forks, so signing is push-only.
-    # Release builds still compile on a PR, just unsigned.
+    # Signing is skipped when the keystore secret is absent: forks without secrets, and pull
+    # requests, which never receive them. The release build still compiles, just unsigned.
     - name: Write key
-      if: github.event_name == 'push'
+      if: github.event_name == 'push' && env.HAS_KEYSTORE == 'true'
       run: |
         echo KEYSTORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' > signing.properties
         echo KEYSTORE_ALIAS='${{ secrets.KEYSTORE_ALIAS }}' >> signing.properties
@@ -65,8 +69,10 @@ jobs:
           app/build/outputs/apk/release
           app/build/outputs/mapping/release/mapping.txt
 
+    # Only main publishes the nightly, and only when the APK is actually signed — an unsigned
+    # APK cannot be installed, so there would be nothing worth publishing.
     - name: Create AutoBuild Release
-      if: github.event_name == 'push'
+      if: github.ref == 'refs/heads/main' && env.HAS_KEYSTORE == 'true'
       run: |
         set -uo pipefail
         LATEST_REL=$(gh release view --json tagName -q .tagName || true)

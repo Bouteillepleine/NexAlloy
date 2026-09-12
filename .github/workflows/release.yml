@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # The secrets context is not available in a step-level `if`.
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE != '' }}
 
     steps:
     - uses: actions/checkout@v6
@@ -26,6 +29,14 @@ jobs:
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
+
+    # Publishing an unsigned APK is worse than publishing nothing, so stop before the build
+    # rather than shipping something nobody can install.
+    - name: Require signing key
+      if: env.HAS_KEYSTORE != 'true'
+      run: |
+        echo '::error::No KEYSTORE secret is configured; a release cannot be signed.'
+        exit 1
 
     - name: Write key
       run: |
