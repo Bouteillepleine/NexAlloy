@@ -7,9 +7,10 @@ name: Fingerprints (device APKs)
 # phone attached. GitHub-hosted runners cannot do it: there is no legitimate way to download the
 # APK from Play in CI (see the Fingerprint job comments in android.yml).
 #
-# NOTE: `schedule` and `workflow_dispatch` only fire for workflow files that exist on the
-# repository's DEFAULT branch. While the default branch is `main` (pinned to upstream), only the
-# `push` trigger below actually runs. Make MyNexAlloy the default branch to get the daily run.
+# `schedule` and `workflow_dispatch` fire from the default branch, which is MyNexAlloy, so
+# both work here. The daily cron is left commented out until a runner with the
+# `nexalloy-device` label exists: a scheduled job with no matching runner does not fail, it
+# queues, so an unattended cron would pile up a stuck run every morning.
 on:
   push:
     branches: [ "MyNexAlloy" ]
@@ -17,9 +18,9 @@ on:
       - 'app/src/main/java/**/Fingerprints.kt'
       - 'app/src/test/**'
       - '.github/workflows/fingerprints.yml'
-  schedule:
-    # Daily; YouTube ships a new build roughly weekly and this catches it within a day.
-    - cron: '0 6 * * *'
+  # schedule:
+  #   # Daily; YouTube ships a new build roughly weekly and this catches it within a day.
+  #   - cron: '0 6 * * *'
   workflow_dispatch:
 
 concurrency:

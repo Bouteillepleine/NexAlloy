@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "MyNexAlloy" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "MyNexAlloy" ]
   # Lets a build be kicked off by hand from any branch of the fork.
   workflow_dispatch:
 
@@ -103,18 +103,29 @@ jobs:
         path: app/build/reports/tests/testDebugUnitTest
         if-no-files-found: ignore
 
-    # Only main publishes the nightly, and only when the APK is actually signed — an unsigned
-    # APK cannot be installed, so there would be nothing worth publishing.
+    # The nightly comes from MyNexAlloy, the default branch and the one that actually
+    # receives work: `main` is pinned to upstream and never pushed, so gating on it would
+    # mean no nightly is ever published. Skipped without a key, since an unsigned APK
+    # cannot be installed.
     - name: Create AutoBuild Release
-      if: github.ref == 'refs/heads/main' && env.HAS_KEYSTORE == 'true'
+      if: github.ref == 'refs/heads/MyNexAlloy' && env.HAS_KEYSTORE == 'true'
       run: |
         set -uo pipefail
+        cd app/build/outputs/apk/release/
+
+        # Publish only once the APK actually exists. The old nightly is deleted to make way for
+        # the new one, so that deletion must not happen until there is something to replace it
+        # with — otherwise a build that produced no APK leaves no nightly at all.
+        if [ ! -s app-release.apk ]; then
+          echo '::error::No release APK was produced; leaving the existing nightly in place.'
+          exit 1
+        fi
+
         LATEST_REL=$(gh release view --json tagName -q .tagName || true)
         GIT_DESCRIBE=$(git rev-parse --short HEAD)
-        cd app/build/outputs/apk/release/
         mv app-release.apk "NexAlloy-${GIT_DESCRIBE}.apk"
         if [ -n "${LATEST_REL}" ]; then
-          NOTES="Nightly build from commit ${GIT_DESCRIBE}. See changes: https://github.com/${{ github.repository }}/compare/${LATEST_REL}...main"
+          NOTES="Nightly build from commit ${GIT_DESCRIBE}. See changes: https://github.com/${{ github.repository }}/compare/${LATEST_REL}...MyNexAlloy"
         else
           NOTES="Nightly build from commit ${GIT_DESCRIBE}."
         fi
@@ -122,5 +133,6 @@ jobs:
         # release stays pinned to whichever commit first produced it.
         gh release delete autobuild --yes --cleanup-tag || true
         gh release create autobuild "NexAlloy-${GIT_DESCRIBE}.apk" --prerelease --title "Nightly Build ${GIT_DESCRIBE}" --notes "${NOTES}"
+        echo "Published nightly NexAlloy-${GIT_DESCRIBE}.apk" >> "$GITHUB_STEP_SUMMARY"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
