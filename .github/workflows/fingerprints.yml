@@ -1,0 +1,77 @@
+name: Fingerprints (device APKs)
+
+# Checks every DexKit fingerprint against the APKs the Play Store has installed on an attached
+# device, so a YouTube update that breaks a patch shows up here rather than in a bug report.
+#
+# This needs a self-hosted runner with the `nexalloy-device` label, on a machine with adb and the
+# phone attached. GitHub-hosted runners cannot do it: there is no legitimate way to download the
+# APK from Play in CI (see the Fingerprint job comments in android.yml).
+#
+# NOTE: `schedule` and `workflow_dispatch` only fire for workflow files that exist on the
+# repository's DEFAULT branch. While the default branch is `main` (pinned to upstream), only the
+# `push` trigger below actually runs. Make MyNexAlloy the default branch to get the daily run.
+on:
+  push:
+    branches: [ "MyNexAlloy" ]
+    paths:
+      - 'app/src/main/java/**/Fingerprints.kt'
+      - 'app/src/test/**'
+      - '.github/workflows/fingerprints.yml'
+  schedule:
+    # Daily; YouTube ships a new build roughly weekly and this catches it within a day.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: fingerprints
+  cancel-in-progress: false
+
+jobs:
+  fingerprints:
+    runs-on: [ self-hosted, nexalloy-device ]
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+
+    - name: set up JDK
+      uses: actions/setup-java@v5
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew tools/fetch-target-apks.sh
+
+    - name: Pull target APKs from the device
+      run: tools/fetch-target-apks.sh
+
+    - name: Record target versions
+      run: |
+        {
+          echo '### Fingerprint targets'
+          echo
+          for apk in app/binaries/*.apk; do
+            echo "- \`$(basename "$apk" .apk)\` ($(du -h "$apk" | cut -f1))"
+          done
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    # A failure here means a fingerprint no longer resolves against the installed app version,
+    # i.e. that patch is broken for anyone on that version.
+    - name: Fingerprint tests
+      run: ./gradlew :app:testDebugUnitTest
+
+    - name: Upload fingerprint test report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: nexalloy-device-fingerprint-report
+        path: app/build/reports/tests/testDebugUnitTest
+        if-no-files-found: ignore
+
+    # The APKs are Google's binaries and must not end up in an artifact or the repository.
+    - name: Clean up APKs
+      if: always()
+      run: rm -f app/binaries/*.apk
