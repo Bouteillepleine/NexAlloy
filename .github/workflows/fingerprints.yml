@@ -11,17 +11,20 @@ name: Fingerprints (device APKs)
 # both work here. The daily cron is left commented out until a runner with the
 # `nexalloy-device` label exists: a scheduled job with no matching runner does not fail, it
 # queues, so an unattended cron would pile up a stuck run every morning.
+#
+# Until such a runner exists every trigger here is on-demand only. An automatic one would just
+# queue a run nothing can pick up — a job requesting absent labels does not fail, it waits — so
+# both the push and cron triggers stay commented out. Uncomment them once a runner is online.
 on:
-  push:
-    branches: [ "MyNexAlloy" ]
-    paths:
-      - 'app/src/main/java/**/Fingerprints.kt'
-      - 'app/src/test/**'
-      - '.github/workflows/fingerprints.yml'
+  workflow_dispatch:
+  # push:
+  #   branches: [ "MyNexAlloy" ]
+  #   paths:
+  #     - 'app/src/main/java/**/Fingerprints.kt'
+  #     - 'app/src/test/**'
   # schedule:
   #   # Daily; YouTube ships a new build roughly weekly and this catches it within a day.
   #   - cron: '0 6 * * *'
-  workflow_dispatch:
 
 concurrency:
   group: fingerprints
