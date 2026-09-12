@@ -29,18 +29,23 @@ jobs:
 
     - name: Write key
       run: |
-        echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} > signing.properties
-        echo KEYSTORE_ALIAS=${{ secrets.KEYSTORE_ALIAS }} >> signing.properties
+        echo KEYSTORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' > signing.properties
+        echo KEYSTORE_ALIAS='${{ secrets.KEYSTORE_ALIAS }}' >> signing.properties
         echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
         echo KEYSTORE_FILE=../key.jks >> signing.properties
-        echo ${{ secrets.KEYSTORE }} | base64 --decode > key.jks
+        echo '${{ secrets.KEYSTORE }}' | base64 --decode > key.jks
 
     - name: Build Release
       run: ./gradlew assembleRelease
 
-    - run: |
+    # Deliberately not --prerelease: the in-app update check reads /releases/latest, and GitHub
+    # resolves that to the newest release that is *not* a prerelease. Publishing every tag as a
+    # prerelease made that endpoint return 404 (or a stale release), so users were told they were
+    # up to date no matter how many versions they were behind.
+    - name: Publish release
+      run: |
         cd app/build/outputs/apk/release/
-        mv app-release.apk NexAlloy-${{ github.ref_name }}.apk
-        gh release create --prerelease ${{ github.ref_name }} NexAlloy-${{ github.ref_name }}.apk
+        mv app-release.apk "NexAlloy-${{ github.ref_name }}.apk"
+        gh release create "${{ github.ref_name }}" "NexAlloy-${{ github.ref_name }}.apk" --title "${{ github.ref_name }}" --generate-notes
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -11,15 +11,17 @@ plugins {
     alias(libs.plugins.protobuf)
 }
 
-val gitCommitHashProvider = providers.exec {
-    commandLine("git", "rev-parse", "--short", "HEAD")
-    workingDir = rootProject.rootDir
-}.standardOutput.asText!!
+// Source archives and shallow exports have no git metadata; fall back instead of failing
+// configuration outright, which used to make the project unbuildable outside a git checkout.
+fun gitOutput(vararg args: String): String = runCatching {
+    providers.exec {
+        commandLine(*args)
+        workingDir = rootProject.rootDir
+    }.standardOutput.asText.get().trim()
+}.getOrDefault("")
 
-val gitCommitDateProvider = providers.exec {
-    commandLine("git log -1 --format=%ct".split(" "))
-    workingDir = rootProject.rootDir
-}.standardOutput.asText!!
+val gitCommitHash = gitOutput("git", "rev-parse", "--short", "HEAD").ifEmpty { "unknown" }
+val gitCommitDate = gitOutput("git", "log", "-1", "--format=%ct").toLongOrNull() ?: 0L
 
 android {
     namespace = "io.github.nexalloy"
@@ -32,8 +34,8 @@ android {
             rootProject.file("morphe-patches/gradle.properties").inputStream().use { load(it) }
         }["version"]
         buildConfigField("String", "PATCH_VERSION", "\"$patchVersion\"")
-        buildConfigField("String", "COMMIT_HASH", "\"${gitCommitHashProvider.get().trim()}\"")
-        buildConfigField("long", "COMMIT_DATE", "${gitCommitDateProvider.get().trim()}L")
+        buildConfigField("String", "COMMIT_HASH", "\"$gitCommitHash\"")
+        buildConfigField("long", "COMMIT_DATE", "${gitCommitDate}L")
     }
     androidResources {
         additionalParameters += arrayOf("--allow-reserved-package-id", "--package-id", "0x4b")
@@ -44,6 +46,7 @@ android {
                 "META-INF/**", "**.bin"
             )
         )
+        merges += "META-INF/xposed/*"
     }
     val ksFile = rootProject.file("signing.properties")
     signingConfigs {
@@ -71,13 +74,6 @@ android {
             if (ksFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-        }
-    }
-
-    packaging {
-        resources {
-            merges += "META-INF/xposed/*"
-//            excludes += "**"
         }
     }
 
