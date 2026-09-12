@@ -37,7 +37,7 @@ class MainHook : XposedModule() {
         inContext(param) { app ->
             this.app = app
             if (isReVancedPatched(param)) {
-                Utils.showToastLong("NexAlloy module does not work with patched app")
+                Utils.showToastLong("NexAlloy does not work with an already-patched app")
                 return@inContext
             }
 
@@ -70,7 +70,10 @@ class MainHook : XposedModule() {
 
 context(xposed: XposedInterface)
 fun inContext(lpparam: PackageReadyParam, f: (Application) -> Unit) {
-    val appClazz = XposedHelpers.findClass(lpparam.applicationInfo.className, lpparam.classLoader)
+    // An app without a custom Application subclass reports a null className; the framework
+    // instantiates android.app.Application for it.
+    val appClassName = lpparam.applicationInfo.className ?: Application::class.java.name
+    val appClazz = XposedHelpers.findClass(appClassName, lpparam.classLoader)
     appClazz.getMethod("onCreate").hookMethod {
         before {
             val app = it.thisObject as Application

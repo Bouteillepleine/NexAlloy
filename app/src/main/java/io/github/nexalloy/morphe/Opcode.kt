@@ -262,6 +262,14 @@ enum class Opcode(val opName: String) {
     val opCode: Int = ordinal
 
     companion object {
-        fun fromInt(value: Int) = Opcode.entries[value]
+        /**
+         * @throws IllegalArgumentException if [value] is not a known Dalvik opcode. DexKit can
+         * report payload pseudo-opcodes that fall outside the 0x00..0xFF table, which used to
+         * surface as an opaque [IndexOutOfBoundsException].
+         */
+        fun fromInt(value: Int): Opcode = fromIntOrNull(value)
+            ?: throw IllegalArgumentException("Unknown opcode: 0x${value.toString(16)}")
+
+        fun fromIntOrNull(value: Int): Opcode? = entries.getOrNull(value)
     }
 }

@@ -169,10 +169,13 @@ private val resourceLoader by lazy @RequiresApi(Build.VERSION_CODES.R) {
 }
 
 fun Context.addModuleAssets() {
-    val modulePath = File(modulePath)
-    if (!modulePath.exists()) {
+    val moduleFile = File(modulePath)
+    if (!moduleFile.exists()) {
+        // The module APK was replaced underneath us; the stale path can no longer be opened.
+        // Bail out instead of feeding a dangling path to the resource loader.
         Utils.showToastLong("NexAlloy has been updated")
         Utils.restartApp(this)
+        return
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -180,7 +183,7 @@ fun Context.addModuleAssets() {
         return
     }
 
-    resources.assets.callMethod("addAssetPath", modulePath)
+    resources.assets.callMethod("addAssetPath", moduleFile.absolutePath)
 }
 
 // Module layouts (e.g. morphe_sb_inline_sponsor_overlay.xml) reference module classes
@@ -194,12 +197,18 @@ fun injectSelfClassLoaderToHost(self: ClassLoader, host: ClassLoader) {
         XposedHelpers.findMethodExact(ClassLoader::class.java, "findClass", String::class.java)
     host.setObjectField("parent", object : ClassLoader(host.parent) {
         override fun findClass(name: String): Class<*> {
-            try {
-                if (name.startsWith("app.morphe")) {
+            if (name.startsWith("app.morphe")) {
+                try {
+                    // Reflective invocation wraps the callee's throwable, so a plain
+                    // `catch (ClassNotFoundException)` here would never fire and the
+                    // InvocationTargetException would escape into the host's class loading.
                     return findClassMethod(self, name) as Class<*>
+                } catch (e: InvocationTargetException) {
+                    if (e.cause !is ClassNotFoundException) {
+                        Logger.printException({ "Unexpected failure loading $name" }, e.cause ?: e)
+                    }
+                } catch (_: ClassNotFoundException) {
                 }
-            } catch (_: ClassNotFoundException) {
-                Logger.printException { "Unexcepted ClassNotFoundException: $name" }
             }
 
             throw ClassNotFoundException(name)

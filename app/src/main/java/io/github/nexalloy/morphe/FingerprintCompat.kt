@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe
 
+import app.morphe.extension.shared.Logger
 import io.github.nexalloy.FindClassFunc
 import io.github.nexalloy.FindFieldFunc
 import io.github.nexalloy.FindMethodFunc
@@ -57,7 +58,8 @@ fun MethodMatcher.opcodes(opcodes: Collection<Opcode>): OpCodesMatcher {
 }
 
 fun MethodMatcher.accessFlags(vararg accessFlags: AccessFlags) {
-    val modifiers = accessFlags.map { it.modifier }.reduce { acc, next -> acc or next }
+    // fold, not reduce: reduce throws UnsupportedOperationException on an empty vararg array.
+    val modifiers = accessFlags.fold(0) { acc, next -> acc or next.modifier }
     if (modifiers != 0) this.modifiers(modifiers)
     if (accessFlags.contains(AccessFlags.CONSTRUCTOR)) {
         if (accessFlags.contains(AccessFlags.STATIC)) this.name = "<clinit>"
@@ -372,7 +374,8 @@ open class Fingerprint internal constructor(
         if (results.size != 1) {
             val name = this::class.simpleName ?: "Anonymous Fingerprint"
             val list = results.joinToString("\n  ") { it.descriptor }
-            System.err.println("$name matched ${results.size} methods:\n  $list")
+            // System.err is invisible in the usual Xposed log; route it through the shared logger.
+            Logger.printException { "$name matched ${results.size} methods:\n  $list" }
         }
         return results.single()
     }

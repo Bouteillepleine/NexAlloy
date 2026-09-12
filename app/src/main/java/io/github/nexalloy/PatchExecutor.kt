@@ -68,23 +68,26 @@ abstract class IHook(val xposed: XposedInterface) : XposedInterface by xposed {
     }
 
     fun DexClass.toClass() = getInstance(classLoader)
-    fun DexMethod.toMethod(): Method {
-        var clz = classLoader.loadClass(className)
-        do {
-            return XposedHelpers.findMethodExactIfExists(clz, name, *paramTypeNames.toTypedArray())
-                ?: continue
-        } while (clz.superclass.also { clz = it } != null)
-        throw NoSuchMethodException("Method $this not found")
+
+    // Walk the class hierarchy explicitly: the previous `do { ... } while (clz.superclass.also { clz = it } != null)`
+    // form assigned a null superclass back into a non-null variable, so reaching the top of the
+    // hierarchy threw a NullPointerException instead of the intended NoSuchMethodException.
+    private inline fun <T : Any> DexMethod.searchHierarchy(find: (Class<*>) -> T?): T? {
+        var clz: Class<*>? = classLoader.loadClass(className)
+        while (clz != null) {
+            find(clz)?.let { return it }
+            clz = clz.superclass
+        }
+        return null
     }
 
-    fun DexMethod.toConstructor(): Constructor<*> {
-        var clz = classLoader.loadClass(className)
-        do {
-            return XposedHelpers.findConstructorExactIfExists(clz, *paramTypeNames.toTypedArray())
-                ?: continue
-        } while (clz.superclass.also { clz = it } != null)
-        throw NoSuchMethodException("Method $this not found")
-    }
+    fun DexMethod.toMethod(): Method = searchHierarchy { clz ->
+        XposedHelpers.findMethodExactIfExists(clz, name, *paramTypeNames.toTypedArray())
+    } ?: throw NoSuchMethodException("Method $this not found")
+
+    fun DexMethod.toConstructor(): Constructor<*> = searchHierarchy { clz ->
+        XposedHelpers.findConstructorExactIfExists(clz, *paramTypeNames.toTypedArray())
+    } ?: throw NoSuchMethodException("Constructor $this not found")
 
     fun DexMethod.toMember(): Member {
         return when {
@@ -229,7 +232,7 @@ class PatchExecutor(
         val success = failedPatches.isEmpty()
         if (!success) {
             XposedBridge.log("${lpparam.applicationInfo.packageName} version: ${getAppVersion()}")
-            Utils.showToastLong("Error while apply following patches:\n${failedPatches.joinToString { it.name }}")
+            Utils.showToastLong("NexAlloy failed to apply:\n${failedPatches.joinToString { it.name }}")
         }
     }
 

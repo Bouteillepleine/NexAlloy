@@ -239,9 +239,12 @@ val writeOpcodes: EnumSet<Opcode> = EnumSet.of(
     XOR_INT_2ADDR, XOR_INT_LIT16, XOR_INT_LIT8, XOR_INT, XOR_LONG_2ADDR, XOR_LONG,
 )
 val InstructionData.opcodeEnum: Opcode get() = Opcode.fromInt(opcode)
+val InstructionData.opcodeEnumOrNull: Opcode? get() = Opcode.fromIntOrNull(opcode)
 val InstructionData.writeRegister: Int?
     get() {
-        if (opcodeEnum !in writeOpcodes) {
+        // Payload pseudo-opcodes have no enum entry; they never write a register either.
+        val opcode = opcodeEnumOrNull ?: return null
+        if (opcode !in writeOpcodes) {
             return null
         }
         return register(0)
