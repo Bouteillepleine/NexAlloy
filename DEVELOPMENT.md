@@ -1,5 +1,26 @@
 # Development Guide
 
+## Building
+
+The patch sources and shared extension code live in two Git submodules, and the build reads
+them directly, so a plain `git clone` is not enough:
+
+```sh
+git clone https://github.com/NexAlloy/NexAlloy
+cd NexAlloy
+git submodule update --init
+./gradlew assembleDebug
+```
+
+Requirements:
+
+- JDK 17 or newer (the Gradle daemon itself uses a JDK 21 toolchain, downloaded on demand).
+- Android SDK with `compileSdk 37`; point `local.properties` at it with `sdk.dir=...`.
+
+Release builds are signed only when a `signing.properties` exists in the repository root with
+`KEYSTORE_PASSWORD`, `KEYSTORE_ALIAS`, `KEYSTORE_ALIAS_PASSWORD` and `KEYSTORE_FILE`. Without
+it `assembleRelease` still builds, just unsigned.
+
 ## Project Structure
 
 The primary hook entry point is [MainHook.kt](app/src/main/java/io/github/nexalloy/MainHook.kt).
@@ -15,7 +36,7 @@ Patches adhere to a specific structure:
 ```
 
 -   **Project-specific patches:** [app/src/main/java/io/github/nexalloy/morphe](app/src/main/java/io/github/nexalloy/morphe)
--   **Upstream patches:** [revanced-patches/patches/src/main/kotlin/app/revanced/patches](revanced-patches/patches/src/main/kotlin/app/revanced/patches)
+-   **Upstream patches:** [morphe-patches/patches/src/main/kotlin/app/morphe/patches](morphe-patches/patches/src/main/kotlin/app/morphe/patches)
 
 Upstream patches are included via Git submodule for reference and to utilize shared extension code. They are not modified within this project.
 
@@ -24,7 +45,7 @@ Upstream patches are included via Git submodule for reference and to utilize sha
 #### Add Contoso to module scope
 
 - `app/src/main/AndroidManifest.xml`: Query package for module settings
-- `app/src/main/res/values/arrays.xml`: Xposed scope recommendation
+- `app/src/main/resources/META-INF/xposed/scope.list`: Xposed scope recommendation
 - `README.md`
 
 #### `Fingerprints.kt`
@@ -45,7 +66,7 @@ val isPlusUnlockedFingerprint = fingerprint {
 ```kotlin
 package io.github.nexalloy.morphe.contoso.misc.unlock.plus
 
-import static de.robv.android.xposed.XC_MethodReplacement.returnConstant
+import de.robv.android.xposed.XC_MethodReplacement.returnConstant
 import io.github.nexalloy.morphe.patch
 
 val UnlockPlus = patch(name = "Unlock Plus") {
@@ -216,10 +237,10 @@ The [FingerprintCompat.kt](app/src/main/java/io/github/nexalloy/morphe/Fingerpri
 As per ReVanced Patcher documentation:
 > Instead of involving many abstract changes in one patch or writing entire methods or classes in a patch, you can write code in extensions.
 
-This project shares extension code with the upstream project, located at `./revanced-patches/extensions`. Upstream organizes extensions into separate modules (e.g., `./revanced-patches/extensions/<appAlias>/src/main/java/app/revanced/extension/<appAlias>`). Modifications to shared extensions and other code under `revanced-patches` are minimized.
+This project shares extension code with the upstream project, located at `./morphe-patches/extensions`. Upstream organizes extensions into separate modules (e.g., `./morphe-patches/extensions/<appAlias>/src/main/java/app/morphe/extension/<appAlias>`). Modifications to shared extensions and other code under `morphe-patches` are minimized.
 
 ## Unit Testing
 
-Refer to [FingerprintsKtTest.kt](app/src/test/java/io/github/nexalloy/morphe/FingerprintsKtTest.kt) for testing examples.
+Refer to [FingerprintsKtTest.kt](app/src/test/java/io/github/nexalloy/FingerprintsKtTest.kt) for testing examples.
 
 For running tests, place necessary APKs into the `./app/binaries/` directory. APK filenames should be prefixed with their respective package names (e.g., `com.example.app-1.0.0.apk`).
