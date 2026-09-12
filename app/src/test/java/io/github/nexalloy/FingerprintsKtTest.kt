@@ -16,7 +16,9 @@ import kotlin.io.path.invariantSeparatorsPathString
 import kotlin.io.path.name
 import kotlin.system.measureTimeMillis
 
-@ParameterizedClass
+// allowZeroInvocations: app/binaries is untracked and empty on a fresh clone, and an empty
+// argument set is a skip, not a failure.
+@ParameterizedClass(allowZeroInvocations = true)
 @ArgumentsSource(FilePathArgumentsProvider::class)
 class FingerprintsKtTest(val apkPath: Path) {
     val context = ApkContext(apkPath.toString())

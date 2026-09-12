@@ -1,5 +1,7 @@
 name: Android Release CI
 
+# Releases are cut by tagging a commit, so this works from any branch of the fork —
+# tag a MyNexAlloy commit and the release is built from it.
 on:
   push:
     tags:
@@ -14,6 +16,8 @@ jobs:
     # The secrets context is not available in a step-level `if`.
     env:
       HAS_KEYSTORE: ${{ secrets.KEYSTORE != '' }}
+      HAS_YOUTUBE_APK: ${{ secrets.YOUTUBE_APK_URL != '' }}
+      HAS_MUSIC_APK: ${{ secrets.YT_MUSIC_APK_URL != '' }}
 
     steps:
     - uses: actions/checkout@v6
@@ -45,6 +49,34 @@ jobs:
         echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
         echo KEYSTORE_FILE=../key.jks >> signing.properties
         echo '${{ secrets.KEYSTORE }}' | base64 --decode > key.jks
+
+    # See android.yml for why the APKs come from a location you control rather than a mirror.
+    - name: Fetch target APKs
+      if: env.HAS_YOUTUBE_APK == 'true' || env.HAS_MUSIC_APK == 'true'
+      run: |
+        set -euo pipefail
+        mkdir -p app/binaries
+        if [ -n '${{ secrets.YOUTUBE_APK_URL }}' ]; then
+          curl -fsSL '${{ secrets.YOUTUBE_APK_URL }}' -o app/binaries/com.google.android.youtube.apk
+        fi
+        if [ -n '${{ secrets.YT_MUSIC_APK_URL }}' ]; then
+          curl -fsSL '${{ secrets.YT_MUSIC_APK_URL }}' -o app/binaries/com.google.android.apps.youtube.music.apk
+        fi
+        ls -la app/binaries/
+
+    # Gates the release: if a fingerprint no longer resolves against the target APK, the patch
+    # is broken for that app version and the release must not go out. No APKs configured means
+    # the task skips, and the release proceeds unverified.
+    - name: Fingerprint tests
+      run: ./gradlew :app:testDebugUnitTest
+
+    - name: Upload fingerprint test report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: nexalloy-release-fingerprint-report
+        path: app/build/reports/tests/testDebugUnitTest
+        if-no-files-found: ignore
 
     - name: Build Release
       run: ./gradlew assembleRelease

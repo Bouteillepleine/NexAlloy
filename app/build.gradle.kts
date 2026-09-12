@@ -131,6 +131,25 @@ kotlin {
 }
 tasks.withType<Test> {
     useJUnitPlatform()
+
+    // DexKit is a native library. Without this the fingerprint tests die in ApkContext's
+    // System.loadLibrary("dexkit") unless the IDE happens to have set java.library.path.
+    // Note the Windows binary is shipped as libdexkit.dll, which System.loadLibrary cannot
+    // resolve under either name, so these tests are effectively Linux/macOS only.
+    val jniLibs = layout.projectDirectory.dir("src/test/jniLibs").asFile
+    systemProperty(
+        "java.library.path",
+        listOf(jniLibs.absolutePath, System.getProperty("java.library.path").orEmpty())
+            .filter(String::isNotEmpty)
+            .joinToString(File.pathSeparator)
+    )
+
+    // The APKs under app/binaries are large, proprietary and deliberately untracked, so the
+    // task must stay reproducible-by-absence: no APKs means no fingerprints to check.
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
 }
 
 dependencies {

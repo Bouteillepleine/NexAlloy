@@ -5,6 +5,8 @@ on:
     branches: [ "main", "MyNexAlloy" ]
   pull_request:
     branches: [ "main" ]
+  # Lets a build be kicked off by hand from any branch of the fork.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,10 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # The secrets context is not available in a step-level `if`, so surface the one fact the
-    # steps need as a job-level env var.
+    # The secrets context is not available in a step-level `if`, so surface the facts the steps
+    # need as job-level env vars.
     env:
       HAS_KEYSTORE: ${{ secrets.KEYSTORE != '' }}
+      HAS_YOUTUBE_APK: ${{ secrets.YOUTUBE_APK_URL != '' }}
+      HAS_MUSIC_APK: ${{ secrets.YT_MUSIC_APK_URL != '' }}
 
     steps:
     - uses: actions/checkout@v6
@@ -41,7 +45,7 @@ jobs:
     # Signing is skipped when the keystore secret is absent: forks without secrets, and pull
     # requests, which never receive them. The release build still compiles, just unsigned.
     - name: Write key
-      if: github.event_name == 'push' && env.HAS_KEYSTORE == 'true'
+      if: github.event_name != 'pull_request' && env.HAS_KEYSTORE == 'true'
       run: |
         echo KEYSTORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' > signing.properties
         echo KEYSTORE_ALIAS='${{ secrets.KEYSTORE_ALIAS }}' >> signing.properties
@@ -68,6 +72,36 @@ jobs:
         path: |
           app/build/outputs/apk/release
           app/build/outputs/mapping/release/mapping.txt
+
+    # app/binaries feeds FingerprintsKtTest, which resolves every DexKit fingerprint against a
+    # real APK — the check that catches a YouTube update breaking a patch before users do.
+    # The URLs must point at a copy you control (a private release asset, your own storage).
+    # This deliberately does not scrape APK mirror sites: their terms forbid automated
+    # downloading, and the binaries are Google's to distribute, not ours.
+    - name: Fetch target APKs
+      if: env.HAS_YOUTUBE_APK == 'true' || env.HAS_MUSIC_APK == 'true'
+      run: |
+        set -euo pipefail
+        mkdir -p app/binaries
+        if [ -n '${{ secrets.YOUTUBE_APK_URL }}' ]; then
+          curl -fsSL '${{ secrets.YOUTUBE_APK_URL }}' -o app/binaries/com.google.android.youtube.apk
+        fi
+        if [ -n '${{ secrets.YT_MUSIC_APK_URL }}' ]; then
+          curl -fsSL '${{ secrets.YT_MUSIC_APK_URL }}' -o app/binaries/com.google.android.apps.youtube.music.apk
+        fi
+        ls -la app/binaries/
+
+    # Skips itself when app/binaries is empty, so this is a no-op until an APK source is set.
+    - name: Fingerprint tests
+      run: ./gradlew :app:testDebugUnitTest
+
+    - name: Upload fingerprint test report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: nexalloy-fingerprint-report
+        path: app/build/reports/tests/testDebugUnitTest
+        if-no-files-found: ignore
 
     # Only main publishes the nightly, and only when the APK is actually signed — an unsigned
     # APK cannot be installed, so there would be nothing worth publishing.
