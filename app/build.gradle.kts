@@ -129,14 +129,21 @@ kotlin {
         jvmTarget = JvmTarget.JVM_17
     }
 }
+// ApkContext calls System.loadLibrary("dexkit"), which resolves libdexkit.so on Linux and
+// libdexkit.dylib on macOS, but looks for dexkit.dll on Windows — and the shipped binary is
+// named libdexkit.dll, which neither that nor the "libdexkit" fallback can find. Stage a copy
+// under the name each platform actually asks for.
+val stageTestJniLibs = tasks.register<Copy>("stageTestJniLibs") {
+    from(layout.projectDirectory.dir("src/test/jniLibs"))
+    into(layout.buildDirectory.dir("tmp/testJniLibs"))
+    rename("^libdexkit\\.dll$", "dexkit.dll")
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
 
-    // DexKit is a native library. Without this the fingerprint tests die in ApkContext's
-    // System.loadLibrary("dexkit") unless the IDE happens to have set java.library.path.
-    // Note the Windows binary is shipped as libdexkit.dll, which System.loadLibrary cannot
-    // resolve under either name, so these tests are effectively Linux/macOS only.
-    val jniLibs = layout.projectDirectory.dir("src/test/jniLibs").asFile
+    dependsOn(stageTestJniLibs)
+    val jniLibs = layout.buildDirectory.dir("tmp/testJniLibs").get().asFile
     systemProperty(
         "java.library.path",
         listOf(jniLibs.absolutePath, System.getProperty("java.library.path").orEmpty())

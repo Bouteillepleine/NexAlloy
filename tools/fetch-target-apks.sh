@@ -34,6 +34,16 @@ adb_() {
     fi
 }
 
+# Under Git Bash / MSYS the adb binary is a native Windows exe: it cannot follow a /c/... style
+# destination and silently writes the file to a tree hanging off the drive root instead.
+host_path() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        printf '%s' "$1"
+    fi
+}
+
 if ! command -v adb >/dev/null 2>&1; then
     echo "adb not found on PATH." >&2
     exit 1
@@ -58,7 +68,11 @@ for pkg in $PACKAGES; do
 
     version=$(adb_ shell dumpsys package "$pkg" 2>/dev/null | tr -d '\r' | sed -n 's/^ *versionName=//p' | head -1 || true)
     out="$BINARIES_DIR/$pkg.apk"
-    adb_ pull "$base" "$out" >/dev/null
+    adb_ pull "$base" "$(host_path "$out")" >/dev/null
+    if [ ! -s "$out" ]; then
+        echo "adb reported success but $out is missing; check the destination path." >&2
+        exit 1
+    fi
     echo "pulled $pkg ${version:-?} -> app/binaries/$pkg.apk"
     fetched=$((fetched + 1))
 done
