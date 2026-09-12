@@ -1,5 +1,6 @@
 package io.github.nexalloy
 
+import android.content.pm.PackageManager
 import io.github.nexalloy.hoodles.morphe.alltrails.AllTrailsPatches
 import io.github.nexalloy.morphe.music.YTMusicPatches
 import io.github.nexalloy.morphe.reddit.RedditPatches
@@ -24,3 +25,19 @@ val appPatchConfigurations = listOf(
 )
 
 val patchesByPackage = appPatchConfigurations.associate { it.packageName to it.patches }
+
+fun appPatchInfoOf(appName: String?) = appPatchConfigurations.find { it.appName == appName }
+
+/**
+ * Patches a user can turn on and off.
+ *
+ * Unnamed patches are internal dependencies, and a leading `<` marks a patch that is deliberately
+ * hidden from the UI. Both the patch list and the enabled/total counter have to apply the same
+ * rule, otherwise the counter reports a total the list never shows.
+ */
+val AppPatchInfo.selectablePatches: List<Patch>
+    get() = patches.filter { it.name.isNotEmpty() && !it.name.startsWith("<") }
+
+fun AppPatchInfo.isInstalled(packageManager: PackageManager) = runCatching {
+    packageManager.getPackageInfo(packageName, 0)
+}.isSuccess

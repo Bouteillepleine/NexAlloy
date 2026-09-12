@@ -15,4 +15,32 @@
     <string name="disable_auto_check_update_title">Disable auto update check</string>
     <string name="module_not_activated_summary">Activate this module in Module Management!</string>
     <string name="slogan_summary">ChsBuffer\'s LSPosed module, powered by Morphe, ReVanced, and beyond.\n\nThis is not an official Morphe or ReVanced project, do not ask their developers for help.</string>
+
+    <!-- Main screen -->
+    <string name="about_category">About NexAlloy</string>
+    <string name="version_category">Version</string>
+    <string name="module_not_activated_title">Module not activated</string>
+    <string name="powered_by_morphe_summary">This app uses code from Morphe. To learn more, visit https://morphe.software</string>
+    <string name="faq_summary">Read this before reporting an issue.</string>
+    <string name="patch_count_summary">%1$d of %2$d patches enabled</string>
+    <string name="patch_count_summary_none">No patches enabled · %1$d available</string>
+    <string name="app_not_installed_with_count">Not installed · %1$d patches available</string>
+    <string name="version_summary_short">Version %1$s (%2$s) %3$s</string>
+    <string name="version_summary_built">%1$s\nBuilt %2$s</string>
+
+    <!-- Patch list screen -->
+    <string name="patch_screen_subtitle">%1$d of %2$d enabled</string>
+    <string name="button_default">Default</string>
+    <string name="button_all">All</string>
+    <string name="button_none">None</string>
+    <string name="button_app_info">App info</string>
+    <string name="search_patches_hint">Search patches</string>
+    <string name="no_patches_match_title">No matches</string>
+    <string name="no_patches_match_summary">No patch matches \"%1$s\".</string>
+    <string name="no_patches_available">No patches are available for this app.</string>
+    <string name="app_not_installed_summary">%1$s is not installed. Settings are saved and applied once you install it.</string>
+    <string name="unknown_app_title">Unknown app</string>
+    <string name="unknown_app_summary">This app is no longer part of NexAlloy.</string>
+    <string name="service_unavailable_title">Xposed service unavailable</string>
+    <string name="service_unavailable_summary">NexAlloy cannot reach the Xposed framework, so patch settings cannot be read or saved. Make sure the module is enabled in LSPosed Manager.</string>
 </resources>

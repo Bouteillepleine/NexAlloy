@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?><!--suppress DeprecatedClassUsageInspection -->
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-    <PreferenceScreen android:title="@string/open_source_license">
+    <PreferenceScreen
+        android:key="open_source_licenses"
+        android:title="@string/open_source_license">
         <Preference
             android:summary="GNU General Public License v3.0"
             android:title="Morphe Patches">
