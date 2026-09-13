@@ -12,6 +12,35 @@ import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_15_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_21_or_greater
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
 import io.github.nexalloy.patch
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.os.PowerManager
+
+@Volatile
+private var screenInteractive = true
+
+private val Context.isInteractive: Boolean
+    get() = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
+
+private fun Context.registerScreenStateReceiver() {
+    val receiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            screenInteractive = intent?.action != Intent.ACTION_SCREEN_OFF
+        }
+    }
+    val filter = IntentFilter().apply {
+        addAction(Intent.ACTION_SCREEN_ON)
+        addAction(Intent.ACTION_SCREEN_OFF)
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+    } else {
+        registerReceiver(receiver, filter)
+    }
+}
 
 val BackgroundPlayback = patch(
     name = "Remove background playback restrictions",
@@ -67,7 +96,11 @@ val BackgroundPlayback = patch(
     if (is_20_29_or_greater) {
         // Client flag that interferes with background playback of some video types.
         // Exact purpose is not clear and it's used in ~ 100 locations.
-        insertLiteralOverride(45698813L)
+        screenInteractive = appContext.isInteractive
+        appContext.registerScreenStateReceiver()
+        insertLiteralOverride(45698813L) { original ->
+            if (screenInteractive) original else false
+        }
     }
 
     if (is_21_04_or_greater) {
