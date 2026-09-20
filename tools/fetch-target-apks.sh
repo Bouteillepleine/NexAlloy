@@ -28,9 +28,9 @@ PACKAGES=${*:-$DEFAULT_PACKAGES}
 
 adb_() {
     if [ -n "${ADB_SERIAL:-}" ]; then
-        adb -s "$ADB_SERIAL" "$@"
+        "$ADB" -s "$ADB_SERIAL" "$@"
     else
-        adb "$@"
+        "$ADB" "$@"
     fi
 }
 
@@ -44,8 +44,18 @@ host_path() {
     fi
 }
 
-if ! command -v adb >/dev/null 2>&1; then
-    echo "adb not found on PATH." >&2
+# Prefer the SDK's adb over whatever is first on PATH. An older adb elsewhere on PATH starts a
+# server of its own and kills the running one ("adb server version doesn't match this client"),
+# which drops wireless debugging mid-run.
+ADB=${ADB:-}
+if [ -z "$ADB" ]; then
+    for candidate in         "${ANDROID_HOME:-}/platform-tools/adb"         "${HOME:-}/AppData/Local/Android/Sdk/platform-tools/adb.exe"         "${HOME:-}/Android/Sdk/platform-tools/adb"         "$(command -v adb 2>/dev/null)"
+    do
+        [ -n "$candidate" ] && [ -x "$candidate" ] && ADB=$candidate && break
+    done
+fi
+if [ -z "$ADB" ]; then
+    echo "adb not found. Set ADB=/path/to/adb or put the SDK platform-tools on PATH." >&2
     exit 1
 fi
 
