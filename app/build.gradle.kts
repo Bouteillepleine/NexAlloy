@@ -143,6 +143,12 @@ tasks.withType<Test> {
     useJUnitPlatform()
 
     dependsOn(stageTestJniLibs)
+
+    inputs.files(layout.projectDirectory.dir("binaries").asFileTree)
+        .withPropertyName("targetApks")
+        .withPathSensitivity(PathSensitivity.NAME_ONLY)
+        .optional()
+
     val jniLibs = layout.buildDirectory.dir("tmp/testJniLibs").get().asFile
     systemProperty(
         "java.library.path",
