@@ -22,8 +22,8 @@ export MSYS_NO_PATHCONV MSYS2_ARG_CONV_EXCL
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 BINARIES_DIR="$SCRIPT_DIR/../app/binaries"
 
-# Only these three are wired into FingerprintsKtTest's app detection.
-DEFAULT_PACKAGES="com.google.android.youtube com.google.android.apps.youtube.music com.reddit.frontpage"
+# Every app FingerprintsKtTest knows how to map to a fingerprint package root.
+DEFAULT_PACKAGES="com.google.android.youtube com.google.android.apps.youtube.music com.reddit.frontpage com.google.android.apps.photos com.microblink.photomath com.instagram.android com.instagram.barcelona com.strava com.alltrails.alltrails"
 PACKAGES=${*:-$DEFAULT_PACKAGES}
 
 adb_() {

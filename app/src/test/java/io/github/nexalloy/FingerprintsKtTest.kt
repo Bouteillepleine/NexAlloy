@@ -213,10 +213,25 @@ class FingerprintsKtTest(val apkPath: Path) {
 
     @TestFactory
     fun fingerprintTest(): Iterator<DynamicTest> = sequence {
-        val app = when {
-            apkPath.name.startsWith("com.google.android.youtube") -> "youtube"
-            apkPath.name.startsWith("com.google.android.apps.youtube.music") -> "music"
-            apkPath.name.startsWith("com.reddit.frontpage") -> "reddit"
+        val (app, roots) = when {
+            apkPath.name.startsWith("com.google.android.apps.youtube.music") ->
+                "music" to listOf("morphe/music", "morphe/shared")
+            apkPath.name.startsWith("com.google.android.youtube") ->
+                "youtube" to listOf("morphe/youtube", "morphe/shared")
+            apkPath.name.startsWith("com.reddit.frontpage") ->
+                "reddit" to listOf("morphe/reddit")
+            apkPath.name.startsWith("com.google.android.apps.photos") ->
+                "googlephotos" to listOf("revanced/googlephotos")
+            apkPath.name.startsWith("com.microblink.photomath") ->
+                "photomath" to listOf("revanced/photomath")
+            apkPath.name.startsWith("com.instagram.barcelona") ->
+                "threads" to listOf("revanced/meta")
+            apkPath.name.startsWith("com.instagram.android") ->
+                "instagram" to listOf("revanced/meta")
+            apkPath.name.startsWith("com.strava") ->
+                "strava" to listOf("revanced/strava")
+            apkPath.name.startsWith("com.alltrails.alltrails") ->
+                "alltrails" to listOf("hoodles/morphe/alltrails")
             else -> return@sequence
         }
 
@@ -229,12 +244,10 @@ class FingerprintsKtTest(val apkPath: Path) {
                         .joinToString(".")
                 }.toList().toMutableList()
 
-        val packageNames =
-            findFingerprintPackages("src/main/java/io/github/nexalloy/morphe/$app")
-
-        // Add shared fingerprints packages.
-        if (app == "youtube"  || app == "music"){
-            packageNames.addAll(findFingerprintPackages("src/main/java/io/github/nexalloy/morphe/shared"))
+        val packageNames = mutableListOf<String>()
+        roots.forEach { root ->
+            val dir = Path("src/main/java/io/github/nexalloy/$root")
+            if (Files.isDirectory(dir)) packageNames.addAll(findFingerprintPackages(dir.toString()))
         }
 
         packageNames.distinct().forEach { packageName ->
