@@ -211,7 +211,7 @@ class FingerprintDsl(init: FingerprintDsl.() -> Unit) {
  * This annotation forces the query results to be filtered again using instruction matching.
  * @see Fingerprint.run
  * */
-annotation class RestrictQuery
+annotation class StrictQuery
 
 open class Fingerprint internal constructor(
     classFingerprint: Fingerprint? = null,
@@ -360,11 +360,35 @@ open class Fingerprint internal constructor(
         return run()
     }
 
+    /**
+     * Finds a unique method result using DexKit query.
+     *
+     * When strict mode is enabled and multiple candidates are found,
+     * applies instruction matching to narrow down the results.
+     */
     context(dexkit: DexKitBridge)
     fun run(): MethodData {
-        val methodMatcher = buildMethodMatcher()
+        var results: List<MethodData> = queryAll()
 
-        var results: List<MethodData> = if (classMatcherBlock != null) {
+        if (results.size > 1 && isStrict) {
+            results = results.filter { matchOrNull(it) != null }
+        }
+
+        if (results.size != 1) {
+            val name = this::class.simpleName ?: "Anonymous Fingerprint"
+            val list = results.joinToString("\n  ") { it.descriptor }
+            // System.err is invisible in the usual Xposed log; route it through the shared logger.
+            Logger.printException { "$name matched ${results.size} methods:\n  $list" }
+        }
+        return results.single()
+    }
+
+    private val isStrict = this::class.java.annotations.filterIsInstance<StrictQuery>().isNotEmpty()
+
+    context(dexkit: DexKitBridge)
+    private fun queryAll(): List<MethodData> {
+        val methodMatcher = buildMethodMatcher()
+        val results: List<MethodData> = if (classMatcherBlock != null) {
             dexkit.findClass {
                 matcher(ClassMatcher().apply(classMatcherBlock!!))
             }.findMethod {
@@ -380,22 +404,11 @@ open class Fingerprint internal constructor(
             }
         }
 
-        if (results.size > 1) {
-            val isRestrict =
-                this::class.java.annotations.filterIsInstance<RestrictQuery>().firstOrNull()
-
-            if (isRestrict != null) {
-                results = results.filter { matchOrNull(it) != null }
-            }
+        if (results.size > 10) {
+            throw IllegalStateException("Bad query, too much results")
         }
 
-        if (results.size != 1) {
-            val name = this::class.simpleName ?: "Anonymous Fingerprint"
-            val list = results.joinToString("\n  ") { it.descriptor }
-            // System.err is invisible in the usual Xposed log; route it through the shared logger.
-            Logger.printException { "$name matched ${results.size} methods:\n  $list" }
-        }
-        return results.single()
+        return results
     }
 
     context(dexkit: DexKitBridge)
@@ -488,6 +501,22 @@ open class Fingerprint internal constructor(
     context(_: DexKitBridge)
     val instructionMatches
         get() = match().instructionMatches
+
+    /**
+     * Match all methods in the target app.
+     *
+     * @return All methods that match.
+     * @throws Exception If the fingerprint failed to match any methods.
+     */
+    context(patchContext: DexKitBridge)
+    fun matchAll() = matchAllOrNull() ?: throw Exception()
+
+    context(_: DexKitBridge)
+    fun matchAllOrNull(): List<Match>? {
+        return queryAll().mapNotNull { matchOrNull(it) }
+            .distinctBy(Match::method)
+            .ifEmpty { null }
+    }
 }
 
 class Match constructor(
