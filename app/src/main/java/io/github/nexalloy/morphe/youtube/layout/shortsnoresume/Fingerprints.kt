@@ -23,7 +23,7 @@ internal object UserWasInShortsEvaluateAnchorFingerprint: Fingerprint(
 /**
  * 21.30+
  */
-@RequireAppVersion("21.30.000")
+@RequireAppVersion(minVersion = "21.30.000", maxVersion = "21.41.000")
 internal object UserWasInShortsEvaluateFingerprint : Fingerprint(
     filters = listOf(
         methodCall(
@@ -36,6 +36,19 @@ internal object UserWasInShortsEvaluateFingerprint : Fingerprint(
             name = "<init>",
             parameters = listOf("L", "L", "L", "L", "L", "L",  "Ljava/lang/String;"),
             location = InstructionLocation.MatchAfterWithin(50)
+        )
+    )
+)
+
+@RequireAppVersion("21.41.000")
+internal object UserWasInShortsEvaluate21_41Fingerprint : Fingerprint(
+    returnType = "Z",
+    parameters = listOf("J"),
+    filters = listOf(
+        literal(1073815469),
+        methodCall(
+            smali = "Lj\$/time/Instant;->isBefore(Lj\$/time/Instant;)Z",
+            location = InstructionLocation.MatchAfterWithin(30)
         )
     )
 )
