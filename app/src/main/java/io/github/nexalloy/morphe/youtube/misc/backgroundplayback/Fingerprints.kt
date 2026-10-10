@@ -49,9 +49,6 @@ object BackgroundPlaybackManagerFingerprint : Fingerprint(
 )
 
 val backgroundPlaybackSettingsFingerprint = fingerprint {
-    accessFlags(AccessFlags.PUBLIC, AccessFlags.FINAL)
-    returns("Ljava/lang/String;")
-    parameters()
     opcodes(
         Opcode.INVOKE_VIRTUAL,
         Opcode.MOVE_RESULT,
@@ -63,7 +60,9 @@ val backgroundPlaybackSettingsFingerprint = fingerprint {
 }
 
 val backgroundPlaybackSettingsSubFingerprint = findMethodDirect {
-    backgroundPlaybackSettingsFingerprint().invokes.filter { it.returnTypeName == "boolean" }[1]
+    backgroundPlaybackSettingsFingerprint().invokes.first {
+        it.returnTypeName == "boolean" && !it.className.startsWith("java.")
+    }
 }
 
 object KidsBackgroundPlaybackPolicyControllerFingerprint : Fingerprint(
