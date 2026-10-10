@@ -369,8 +369,9 @@ open class Fingerprint internal constructor(
         if (results.size != 1) {
             val name = this::class.simpleName ?: "Anonymous Fingerprint"
             val list = results.joinToString("\n  ") { it.descriptor }
-            // System.err is invisible in the usual Xposed log; route it through the shared logger.
-            Logger.printException { "$name matched ${results.size} methods:\n  $list" }
+            val message = "$name matched ${results.size} methods:\n  $list"
+            System.err.println(message)
+            runCatching { Logger.printException { message } }
         }
         return results.single()
     }
