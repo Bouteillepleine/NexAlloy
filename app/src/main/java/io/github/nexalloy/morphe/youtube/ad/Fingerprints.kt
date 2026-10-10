@@ -63,7 +63,9 @@ internal object PlayerOverlayTimelyShelfFingerprint : Fingerprint(
     returnType = "V",
     parameters = listOf("Ljava/lang/Object;"),
     filters = listOf(
-        fieldAccess(opcode = Opcode.IGET_OBJECT, type = "Ljava/lang/String;"),
+        opcode(Opcode.CHECK_CAST),
+        fieldAccess(opcode = Opcode.IGET_OBJECT, type = "Ljava/lang/String;", location = MatchAfterWithin(5)),
+        // above nexalloy custom filters
         string("player_overlay_timely_shelf", location = MatchAfterImmediately()),
         methodCall(smali = "Ljava/lang/String;->equals(Ljava/lang/Object;)Z", location = MatchAfterWithin(5)),
         opcode(Opcode.MOVE_RESULT, location = MatchAfterImmediately())
@@ -71,11 +73,11 @@ internal object PlayerOverlayTimelyShelfFingerprint : Fingerprint(
 )
 
 val PlayerOverlayEventType = findClassDirect {
-    PlayerOverlayTimelyShelfFingerprint.instructionMatches[0].instruction.fieldRef!!.declaredClass
+    PlayerOverlayTimelyShelfFingerprint.instructionMatches[0].instruction.classRef!!
 }
 
 val PlayerOverlayIdField = findFieldDirect {
-    PlayerOverlayTimelyShelfFingerprint.instructionMatches[0].instruction.fieldRef!!
+    PlayerOverlayTimelyShelfFingerprint.instructionMatches[1].instruction.fieldRef!!
 }
 
 internal object LoadVideoAdsFingerprint : Fingerprint(
