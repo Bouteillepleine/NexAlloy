@@ -144,11 +144,6 @@ tasks.withType<Test> {
 
     dependsOn(stageTestJniLibs)
 
-    inputs.files(layout.projectDirectory.dir("binaries").asFileTree)
-        .withPropertyName("targetApks")
-        .withPathSensitivity(PathSensitivity.NAME_ONLY)
-        .optional()
-
     val jniLibs = layout.buildDirectory.dir("tmp/testJniLibs").get().asFile
     systemProperty(
         "java.library.path",
@@ -157,8 +152,12 @@ tasks.withType<Test> {
             .joinToString(File.pathSeparator)
     )
 
-    // The APKs under app/binaries are large, proprietary and deliberately untracked, so the
-    // task must stay reproducible-by-absence: no APKs means no fingerprints to check.
+    val fingerprintReport = layout.buildDirectory.file("reports/fingerprints/$name.json")
+    systemProperty("fingerprints.report", fingerprintReport.get().asFile.absolutePath)
+    inputs.files(fileTree("binaries")).withPropertyName("fingerprintApks")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.file(fingerprintReport)
+
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = true
@@ -309,6 +308,7 @@ abstract class CopyResourcesTask @Inject constructor() : DefaultTask() {
         outputDir.deleteRecursively()
 
         val resourcePaths = mapOf(
+            "channelsearch/drawable" to null,
             "qualitybutton/drawable" to null,
             "settings/drawable" to null,
             "settings/menu" to null,

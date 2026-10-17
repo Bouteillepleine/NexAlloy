@@ -2,6 +2,7 @@ package io.github.nexalloy.morphe.shared.misc.debugging
 
 import android.annotation.SuppressLint
 import io.github.nexalloy.TargetApp
+import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.accessFlags
 import io.github.nexalloy.morphe.findClassDirect
@@ -28,8 +29,6 @@ internal val experimentFlagUtilFingerprint = findClassDirect {
             ) || parametersMatch( // 21.35+
                 params, listOf("J", "[B")
             ) || parametersMatch( // 21.42+
-                params, listOf("I", "J")
-            ) || parametersMatch( // 21.42+
                 params, listOf("I", "J", "[B")
             )
         }
@@ -52,12 +51,26 @@ internal val experimentalBooleanFeatureFlagFingerprint = findMethodDirect {
             ) || parametersMatch( // 21.35+
                 params,
                 listOf("J", "Z")
-            ) || parametersMatch( // 21.42+
-                params,
-                listOf("I", "J", "Z")
             )
         }
     }
+}
+
+/**
+ * 21.42+ boolean accessor with an additional int parameter.
+ * The [experimentalBooleanFeatureFlagFingerprint] accessor still exists and is also used.
+ */
+@get:TargetApp("youtube")
+@get:RequireAppVersion("21.42.000")
+internal val experimentalIndexedBooleanFeatureFlagFingerprint = findMethodDirect {
+    findMethod {
+        matcher {
+            declaredClass(experimentFlagUtilFingerprint().name)
+            accessFlags(AccessFlags.PUBLIC)
+            returns("Z")
+            parameters("I", "J", "Z")
+        }
+    }.single()
 }
 
 @SuppressLint("NonUniqueDexKitData")
@@ -77,8 +90,7 @@ internal val experimentalDoubleFeatureFlagFingerprint = findMethodDirect {
                 params,
                 listOf("J", "D")
             ) || parametersMatch( // 21.42+
-                params,
-                listOf("I", "J", "D")
+                params, listOf("I", "J", "D")
             )
         }
     }
@@ -101,8 +113,7 @@ internal val experimentalLongFeatureFlagFingerprint = findMethodDirect {
                 params,
                 listOf("J", "J")
             ) || parametersMatch( // 21.42+
-                params,
-                listOf("I", "J", "J")
+                params, listOf("I", "J", "J")
             )
         }
     }
@@ -126,8 +137,7 @@ internal val experimentalStringFeatureFlagFingerprint = findMethodDirect {
                 params,
                 listOf("J", "Ljava/lang/String;")
             ) || parametersMatch( // 21.42+
-                params,
-                listOf("I", "J", "Ljava/lang/String;")
+                params, listOf("I", "J", "Ljava/lang/String;")
             )
         }
     }

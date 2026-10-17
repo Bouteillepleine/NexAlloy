@@ -1,24 +1,24 @@
 package io.github.nexalloy
 
 import io.github.nexalloy.morphe.Fingerprint
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.TestFactory
 import org.junit.jupiter.params.ParameterizedClass
 import org.junit.jupiter.params.provider.ArgumentsSource
 import org.luckypray.dexkit.DexKitBridge
+import org.luckypray.dexkit.result.ClassData
+import org.luckypray.dexkit.result.FieldData
+import org.luckypray.dexkit.result.MethodData
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.jar.JarFile
 import kotlin.io.path.Path
 import kotlin.io.path.invariantSeparatorsPathString
-import kotlin.io.path.name
-import kotlin.system.measureTimeMillis
 
-// allowZeroInvocations: app/binaries is untracked and empty on a fresh clone, and an empty
-// argument set is a skip, not a failure.
-@ParameterizedClass(allowZeroInvocations = true)
+@ParameterizedClass
 @ArgumentsSource(FilePathArgumentsProvider::class)
 class FingerprintsKtTest(val apkPath: Path) {
     val context = ApkContext(apkPath.toString())
@@ -28,28 +28,52 @@ class FingerprintsKtTest(val apkPath: Path) {
     // region Test runner
 
     private val errors = mutableListOf<Throwable>()
+    private lateinit var resultGroup: FingerprintTestReport.Group
+
+    companion object {
+        @AfterAll
+        @JvmStatic
+        fun writeJsonReport() = FingerprintTestReport.write()
+    }
+
+    private fun Any?.toMatchDescriptor(): String = when (this) {
+        is ClassData -> descriptor
+        is FieldData -> descriptor
+        is MethodData -> descriptor
+        else -> toString()
+    }
 
     /**
      * Run a named fingerprint test, printing result and timing.
      */
     private fun runTest(name: String, block: DexKitBridge.() -> Any?) {
         print("$name: ")
+        val started = System.nanoTime()
         try {
-            val time = measureTimeMillis {
-                val value = block(dexkit)
-                if (value is List<*>) {
+            val value = block(dexkit)
+            val matches = when (value) {
+                is List<*> -> {
                     assertTrue(value.isNotEmpty())
-                    print(value.joinToString(", "))
-                } else {
-                    print("$value")
+                    value.map { it.toMatchDescriptor() }
                 }
+                null -> emptyList()
+                else -> listOf(value.toMatchDescriptor())
             }
+            print(if (value is List<*>) value.joinToString(", ") else "$value")
+            val time = (System.nanoTime() - started) / 1_000_000
             if (time > 20) print(", slow match: ${time}ms")
             println()
+            resultGroup.results.add(FingerprintTestReport.Result(
+                name, if (value == null) "unvalidated" else "matched", matches, time
+            ))
         } catch (e: Throwable) {
             println()
             errors.add(e)
             System.err.println(e.stackTraceToString())
+            resultGroup.results.add(FingerprintTestReport.Result(
+                name, "failed", duration_ms = (System.nanoTime() - started) / 1_000_000,
+                error = e.stackTraceToString()
+            ))
         }
     }
 
@@ -62,10 +86,15 @@ class FingerprintsKtTest(val apkPath: Path) {
         annotations: Array<Annotation>,
         app: String,
     ): Boolean {
-        if (annotations.any { it is SkipTest }) return true
+        fun skip(reason: String): Boolean {
+            resultGroup.results.add(FingerprintTestReport.Result(name, "skipped", reason = reason))
+            return true
+        }
+
+        if (annotations.any { it is SkipTest }) return skip("skip_test")
 
         annotations.filterIsInstance<TargetApp>().firstOrNull()?.let {
-            if (it.app != app) return true
+            if (it.app != app) return skip("target_app")
         }
 
         annotations.filterIsInstance<RequireAppVersion>().firstOrNull()?.let { anno ->
@@ -75,7 +104,7 @@ class FingerprintsKtTest(val apkPath: Path) {
                 print("$name: ")
                 System.out.flush()
                 System.err.println("Skipping: ${e.message}")
-                return true
+                return skip("version")
             }
         }
 
@@ -91,25 +120,32 @@ class FingerprintsKtTest(val apkPath: Path) {
      * - val properties returning [FindFunc] on the FingerprintsKt class (if it exists)
      * - object : Fingerprint(...) declarations in the same package
      */
-    fun testFingerprints(app: String, packageName: String) {
-        context.setupCurrentThread()
+    fun testFingerprints(app: String, group: FingerprintTestReport.Group) {
+        resultGroup = group
         errors.clear()
+        try {
+            context.setupCurrentThread()
 
-        val classLoader = Thread.currentThread().contextClassLoader!!
+            val classLoader = Thread.currentThread().contextClassLoader!!
 
-        // Test val properties on FingerprintsKt (may not exist if all fingerprints are objects).
-        val fingerprintsKtClass = try {
-            classLoader.loadClass("${packageName}.FingerprintsKt")
-        } catch (_: ClassNotFoundException) {
-            null
+            // Test val properties on FingerprintsKt (may not exist if all fingerprints are objects).
+            val fingerprintsKtClass = try {
+                classLoader.loadClass("${group.package_name}.FingerprintsKt")
+            } catch (_: ClassNotFoundException) {
+                null
+            }
+            if (fingerprintsKtClass != null) {
+                testValProperties(app, fingerprintsKtClass)
+            }
+
+            // Test object : Fingerprint(...) declarations.
+            testFingerprintObjects(app, group.package_name, classLoader)
+        } catch (e: Throwable) {
+            group.error = e.stackTraceToString()
+            throw e
+        } finally {
+            group.completed = true
         }
-        if (fingerprintsKtClass != null) {
-            testValProperties(app, fingerprintsKtClass)
-        }
-
-        // Test object : Fingerprint(...) declarations.
-        testFingerprintObjects(app, packageName, classLoader)
-
         if (errors.isNotEmpty()) throw AssertionError()
     }
 
@@ -118,14 +154,17 @@ class FingerprintsKtTest(val apkPath: Path) {
      */
     private fun testValProperties(app: String, clazz: Class<*>) {
         clazz.methods.asSequence()
-            .filter { it.isStatic }
+            .filter { it.isStatic && Function1::class.java.isAssignableFrom(it.returnType) }
             .sortedBy { it.name }
             .forEach { method ->
                 val name = method.name.drop(3) // drop "get" prefix
                 if (shouldSkip(name, method.annotations, app)) return@forEach
 
-                val func = method(null) as? FindFunc ?: return@forEach
-                runTest(name) { func() }
+                runTest(name) {
+                    @Suppress("UNCHECKED_CAST")
+                    val func = method(null) as FindFunc
+                    func()
+                }
             }
     }
 
@@ -212,28 +251,9 @@ class FingerprintsKtTest(val apkPath: Path) {
     // region Test factory
 
     @TestFactory
-    fun fingerprintTest(): Iterator<DynamicTest> = sequence {
-        val (app, roots) = when {
-            apkPath.name.startsWith("com.google.android.apps.youtube.music") ->
-                "music" to listOf("morphe/music", "morphe/shared")
-            apkPath.name.startsWith("com.google.android.youtube") ->
-                "youtube" to listOf("morphe/youtube", "morphe/shared")
-            apkPath.name.startsWith("com.reddit.frontpage") ->
-                "reddit" to listOf("morphe/reddit")
-            apkPath.name.startsWith("com.google.android.apps.photos") ->
-                "googlephotos" to listOf("revanced/googlephotos")
-            apkPath.name.startsWith("com.microblink.photomath") ->
-                "photomath" to listOf("revanced/photomath")
-            apkPath.name.startsWith("com.instagram.barcelona") ->
-                "threads" to listOf("revanced/meta")
-            apkPath.name.startsWith("com.instagram.android") ->
-                "instagram" to listOf("revanced/meta")
-            apkPath.name.startsWith("com.strava") ->
-                "strava" to listOf("revanced/strava")
-            apkPath.name.startsWith("com.alltrails.alltrails") ->
-                "alltrails" to listOf("hoodles/morphe/alltrails")
-            else -> return@sequence
-        }
+    fun fingerprintTest(): Iterator<DynamicTest> {
+        val app = FingerprintTestReport.appFor(apkPath) ?: return emptyList<DynamicTest>().iterator()
+        val report = FingerprintTestReport.forApk(apkPath, appVersion)
 
         fun findFingerprintPackages(rootPackage:String): MutableList<String> =
             Files.walk(Path(rootPackage))
@@ -244,18 +264,32 @@ class FingerprintsKtTest(val apkPath: Path) {
                         .joinToString(".")
                 }.toList().toMutableList()
 
-        val packageNames = mutableListOf<String>()
-        roots.forEach { root ->
-            val dir = Path("src/main/java/io/github/nexalloy/$root")
-            if (Files.isDirectory(dir)) packageNames.addAll(findFingerprintPackages(dir.toString()))
+        val appRoots = when (app) {
+            "googlephotos" -> listOf("revanced/googlephotos")
+            "photomath" -> listOf("revanced/photomath")
+            "threads", "instagram" -> listOf("revanced/meta")
+            "strava" -> listOf("revanced/strava")
+            "alltrails" -> listOf("hoodles/morphe/alltrails")
+            else -> listOf("morphe/$app")
         }
 
-        packageNames.distinct().forEach { packageName ->
+        val packageNames = appRoots.flatMap {
+            findFingerprintPackages("src/main/java/io/github/nexalloy/$it")
+        }.toMutableList()
+
+        // Add shared fingerprints packages.
+        if (app == "youtube"  || app == "music"){
+            packageNames.addAll(findFingerprintPackages("src/main/java/io/github/nexalloy/morphe/shared"))
+        }
+
+        return packageNames.distinct().map { packageName ->
+            val group = FingerprintTestReport.Group(packageName)
+            report.groups.add(group)
             var category = packageName.split(".").drop(5).joinToString(".")
             if (category == "") category = "shared"
-            yield(DynamicTest.dynamicTest(category) { testFingerprints(app, packageName) })
-        }
-    }.iterator()
+            DynamicTest.dynamicTest(category) { testFingerprints(app, group) }
+        }.iterator()
+    }
 
     // endregion
 }

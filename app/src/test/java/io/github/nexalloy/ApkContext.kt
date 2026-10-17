@@ -63,6 +63,9 @@ class ApkContext(apkPath: String) {
             EnumSet.of(AppAttribute.VERSION_NAME),
             JadxSecurity(JadxSecurityFlag.none())
         )
-        return AppVersion(manifest.parse().versionName.removeSuffix("-SECONDARY"))
+        val versionName = requireNotNull(manifest.parse().versionName) {
+            "APK manifest has no versionName"
+        }
+        return AppVersion(versionName.removeSuffix("-SECONDARY"))
     }
 }
