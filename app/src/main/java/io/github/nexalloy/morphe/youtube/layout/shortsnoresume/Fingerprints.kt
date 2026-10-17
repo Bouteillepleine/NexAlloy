@@ -21,9 +21,9 @@ internal object UserWasInShortsEvaluateAnchorFingerprint: Fingerprint(
 )
 
 /**
- * 21.30+
+ * 21.41+
  */
-@RequireAppVersion(minVersion = "21.30.000", maxVersion = "21.41.000")
+@RequireAppVersion("21.41.000")
 internal object UserWasInShortsEvaluateFingerprint : Fingerprint(
     filters = listOf(
         methodCall(
@@ -34,21 +34,28 @@ internal object UserWasInShortsEvaluateFingerprint : Fingerprint(
         methodCall(
             opcode = Opcode.INVOKE_DIRECT_RANGE,
             name = "<init>",
-            parameters = listOf("L", "L", "L", "L", "L", "L",  "Ljava/lang/String;"),
+            parameters = listOf("L", "L", "L", "L", "L", "Ljava/lang/String;"),
             location = InstructionLocation.MatchAfterWithin(50)
         )
     )
 )
 
-@RequireAppVersion("21.41.000")
-internal object UserWasInShortsEvaluate21_41Fingerprint : Fingerprint(
-    returnType = "Z",
-    parameters = listOf("J"),
+/**
+ * 21.30 - 21.40
+ */
+@RequireAppVersion("21.30.000", "21.41.000")
+internal object UserWasInShortsEvaluateLegacy2130Fingerprint : Fingerprint(
     filters = listOf(
-        literal(1073815469),
         methodCall(
-            smali = "Lj\$/time/Instant;->isBefore(Lj\$/time/Instant;)Z",
-            location = InstructionLocation.MatchAfterWithin(30)
+            opcode = Opcode.INVOKE_DIRECT_RANGE,
+            name = "<init>",
+            parameters = listOf("L", "Z", "Z", "L", "Z")
+        ),
+        methodCall(
+            opcode = Opcode.INVOKE_DIRECT_RANGE,
+            name = "<init>",
+            parameters = listOf("L", "L", "L", "L", "L", "L", "Ljava/lang/String;"),
+            location = InstructionLocation.MatchAfterWithin(50)
         )
     )
 )
@@ -57,7 +64,7 @@ internal object UserWasInShortsEvaluate21_41Fingerprint : Fingerprint(
  * 21.03 - 21.29
  */
 @RequireAppVersion(minVersion="21.03.00", maxVersion = "21.30.000")
-internal object UserWasInShortsEvaluateLegacyFingerprint : Fingerprint(
+internal object UserWasInShortsEvaluateLegacy2103Fingerprint : Fingerprint(
     filters = listOf(
         methodCall(
             opcode = Opcode.INVOKE_DIRECT_RANGE,

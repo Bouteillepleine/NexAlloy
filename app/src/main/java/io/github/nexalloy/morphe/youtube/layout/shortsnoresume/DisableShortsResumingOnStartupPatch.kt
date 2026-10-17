@@ -22,9 +22,9 @@ val DisableShortsResumingOnStartup = patch(
     )
 
     if (is_21_03_or_greater) {
-        (if (is_21_41_or_greater) UserWasInShortsEvaluate21_41Fingerprint
-        else if (is_21_30_or_greater) UserWasInShortsEvaluateFingerprint
-        else UserWasInShortsEvaluateLegacyFingerprint).hookMethod(
+        (if (is_21_41_or_greater) UserWasInShortsEvaluateFingerprint
+        else if (is_21_30_or_greater) UserWasInShortsEvaluateLegacy2130Fingerprint
+        else UserWasInShortsEvaluateLegacy2103Fingerprint).hookMethod(
             scopedHook(
                 UserWasInShortsEvaluateAnchorFingerprint.method
             ) {
