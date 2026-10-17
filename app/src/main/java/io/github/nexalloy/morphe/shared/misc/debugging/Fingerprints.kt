@@ -27,6 +27,10 @@ internal val experimentFlagUtilFingerprint = findClassDirect {
                 params, listOf("L", "J")
             ) || parametersMatch( // 21.35+
                 params, listOf("J", "[B")
+            ) || parametersMatch( // 21.42+
+                params, listOf("I", "J")
+            ) || parametersMatch( // 21.42+
+                params, listOf("I", "J", "[B")
             )
         }
     }.map { it.declaredClass }.distinct().single()!!
@@ -48,6 +52,9 @@ internal val experimentalBooleanFeatureFlagFingerprint = findMethodDirect {
             ) || parametersMatch( // 21.35+
                 params,
                 listOf("J", "Z")
+            ) || parametersMatch( // 21.42+
+                params,
+                listOf("I", "J", "Z")
             )
         }
     }
@@ -69,6 +76,9 @@ internal val experimentalDoubleFeatureFlagFingerprint = findMethodDirect {
             ) || parametersMatch( // 21.35+
                 params,
                 listOf("J", "D")
+            ) || parametersMatch( // 21.42+
+                params,
+                listOf("I", "J", "D")
             )
         }
     }
@@ -90,6 +100,9 @@ internal val experimentalLongFeatureFlagFingerprint = findMethodDirect {
             ) || parametersMatch( // 21.35+
                 params,
                 listOf("J", "J")
+            ) || parametersMatch( // 21.42+
+                params,
+                listOf("I", "J", "J")
             )
         }
     }
@@ -112,6 +125,9 @@ internal val experimentalStringFeatureFlagFingerprint = findMethodDirect {
             ) || parametersMatch( // 21.35+
                 params,
                 listOf("J", "Ljava/lang/String;")
+            ) || parametersMatch( // 21.42+
+                params,
+                listOf("I", "J", "Ljava/lang/String;")
             )
         }
     }

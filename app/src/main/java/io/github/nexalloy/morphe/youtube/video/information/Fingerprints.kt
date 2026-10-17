@@ -48,10 +48,9 @@ val setPlaybackSpeedMethodReference = findMethodDirect {
 val PlayerControllerClass = findClassDirect { setPlaybackSpeedMethodReference().declaredClass!! }
 
 internal object PlayerControllerSetTimeReferenceFingerprint : Fingerprint(
-    filters = OpcodesFilter.opcodesToFilters(
-        Opcode.INVOKE_DIRECT_RANGE,
-        Opcode.IGET_OBJECT
-    ) + string("Media progress reported outside media playback: ", comparison = StringComparisonType.CONTAINS)
+    filters = listOf(
+        string("Media progress reported outside media playback: ", comparison = StringComparisonType.CONTAINS)
+    )
 )
 
 val timeMethod = findMethodDirect {
