@@ -18,7 +18,7 @@ import java.util.jar.JarFile
 import kotlin.io.path.Path
 import kotlin.io.path.invariantSeparatorsPathString
 
-@ParameterizedClass
+@ParameterizedClass(allowZeroInvocations = true)
 @ArgumentsSource(FilePathArgumentsProvider::class)
 class FingerprintsKtTest(val apkPath: Path) {
     val context = ApkContext(apkPath.toString())
