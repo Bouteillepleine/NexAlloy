@@ -2,10 +2,13 @@ package io.github.nexalloy.morphe.music.ad
 
 import android.view.View
 import app.morphe.extension.music.patches.HideAdsPatch
+import app.morphe.extension.music.patches.components.AdsFilter
 import app.morphe.extension.shared.Logger
 import app.morphe.extension.shared.ResourceUtils
+import io.github.nexalloy.morphe.music.misc.litho.filter.LithoFilter
 import io.github.nexalloy.morphe.music.misc.settings.PreferenceScreen
 import io.github.nexalloy.morphe.shared.ad.HideFullscreenAds
+import io.github.nexalloy.morphe.shared.misc.litho.filter.addLithoFilter
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
 import io.github.nexalloy.patch
 
@@ -15,15 +18,16 @@ val HideAds = patch(
 ) {
     dependsOn(
         HideFullscreenAds(PreferenceScreen.ADS),
+        LithoFilter,
     )
 
     PreferenceScreen.ADS.addPreferences(
         SwitchPreference("morphe_music_hide_get_premium_label"),
-//        SwitchPreference("morphe_music_hide_music_premium_promotions"),
+        SwitchPreference("morphe_music_hide_music_premium_promotions"),
         SwitchPreference("morphe_music_hide_video_ads"),
     )
 
-    // TODO addLithoFilter(ADS_FILTER)
+    addLithoFilter(AdsFilter())
 
     // Hide 'Get Music Premium' label
     HideGetPremiumFingerprint.hookMethod {
@@ -53,5 +57,4 @@ val HideAds = patch(
         }
     }
 
-    // TODO Hide Music Premium promotions
 }
