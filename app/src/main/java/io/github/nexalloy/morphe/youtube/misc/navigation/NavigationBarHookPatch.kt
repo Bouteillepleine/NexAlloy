@@ -15,21 +15,26 @@ import io.github.nexalloy.enumValueOf
 import io.github.nexalloy.morphe.youtube.misc.backgesture.addBackPressedHook
 import io.github.nexalloy.morphe.youtube.misc.backgesture.addPredictiveBackGestureHook
 import io.github.nexalloy.morphe.youtube.misc.backgesture.backGesturePatch
+import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
+import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_43_or_greater
 import io.github.nexalloy.patch
 import io.github.nexalloy.scopedHook
 import org.luckypray.dexkit.wrap.DexMethod
 
-fun onNavigationTabCreated(button: NavigationBar.NavigationButton, tabView: View) {
-    hookNavigationButtonCreated.forEach { it(button, tabView) }
+private val navigationButtonCreatedHooks = mutableListOf<(NavigationBar.NavigationButton, View) -> Unit>()
+
+fun hookNavigationButtonCreated(hook: (button: NavigationBar.NavigationButton, view: View) -> Unit) {
+    navigationButtonCreatedHooks.add(hook)
 }
 
-val hookNavigationButtonCreated: MutableList<(NavigationBar.NavigationButton, View) -> Unit> =
-    mutableListOf()
+fun onNavigationTabCreated(button: NavigationBar.NavigationButton, tabView: View) {
+    navigationButtonCreatedHooks.forEach { it(button, tabView) }
+}
 
 val NavigationBarHook = patch(
     description = "Hooks the active navigation or search bar.",
 ) {
-    dependsOn(backGesturePatch)
+    dependsOn(backGesturePatch, VersionCheck)
 
     // Hook the current navigation bar enum value. Note, the 'You' tab does not have an enum value.
     InitializeButtonsFingerprint.hookMethod(scopedHook(::getNavigationEnumMethod.member) {
@@ -37,9 +42,11 @@ val NavigationBarHook = patch(
     })
 
     // Hook the creation of navigation tab views.
-    InitializeButtonsFingerprint.hookMethod(scopedHook(::pivotBarButtonsCreateDrawableViewFingerprint.member) {
-        after { NavigationBar.navigationTabLoaded(it.result as View) }
-    })
+    if (!is_21_43_or_greater) {
+        InitializeButtonsFingerprint.hookMethod(scopedHook(::pivotBarButtonsCreateDrawableViewFingerprint.member) {
+            after { NavigationBar.navigationTabLoaded(it.result as View) }
+        })
+    }
 
 //    if (!is_20_28_or_greater) {
 //        // TODO

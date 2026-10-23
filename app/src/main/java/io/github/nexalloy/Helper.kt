@@ -6,7 +6,6 @@ import android.content.res.loader.ResourcesProvider
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.annotation.RequiresApi
-import app.morphe.extension.shared.Logger
 import app.morphe.extension.shared.Utils
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
@@ -169,13 +168,10 @@ private val resourceLoader by lazy @RequiresApi(Build.VERSION_CODES.R) {
 }
 
 fun Context.addModuleAssets() {
-    val moduleFile = File(modulePath)
-    if (!moduleFile.exists()) {
-        // The module APK was replaced underneath us; the stale path can no longer be opened.
-        // Bail out instead of feeding a dangling path to the resource loader.
+    val modulePath = File(modulePath)
+    if (!modulePath.exists()) {
         Utils.showToastLong("NexAlloy has been updated")
         Utils.restartApp(this)
-        return
     }
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -183,37 +179,7 @@ fun Context.addModuleAssets() {
         return
     }
 
-    resources.assets.callMethod("addAssetPath", moduleFile.absolutePath)
-}
-
-// Module layouts (e.g. morphe_sb_inline_sponsor_overlay.xml) reference module classes
-// (app.morphe.*) via class attributes. When the host app inflates these layouts, its
-// ClassLoader cannot find those classes.
-// This method injects the module's ClassLoader into the host's classloader chain by
-// replacing host.parent with a proxy ClassLoader that delegates app.morphe.* lookups
-// to the module's own ClassLoader before falling back to the original parent.
-fun injectSelfClassLoaderToHost(self: ClassLoader, host: ClassLoader) {
-    val findClassMethod =
-        XposedHelpers.findMethodExact(ClassLoader::class.java, "findClass", String::class.java)
-    host.setObjectField("parent", object : ClassLoader(host.parent) {
-        override fun findClass(name: String): Class<*> {
-            if (name.startsWith("app.morphe")) {
-                try {
-                    // Reflective invocation wraps the callee's throwable, so a plain
-                    // `catch (ClassNotFoundException)` here would never fire and the
-                    // InvocationTargetException would escape into the host's class loading.
-                    return findClassMethod(self, name) as Class<*>
-                } catch (e: InvocationTargetException) {
-                    if (e.cause !is ClassNotFoundException) {
-                        Logger.printException({ "Unexpected failure loading $name" }, e.cause ?: e)
-                    }
-                } catch (_: ClassNotFoundException) {
-                }
-            }
-
-            throw ClassNotFoundException(name)
-        }
-    })
+    resources.assets.callMethod("addAssetPath", modulePath)
 }
 
 fun injectHostClassLoaderToSelf(self: ClassLoader, host: ClassLoader) {
@@ -235,10 +201,8 @@ fun injectHostClassLoaderToSelf(self: ClassLoader, host: ClassLoader) {
          *   before delegating to `parent.loadClass`. So, this customization might seem redundant for LSPosed.
          *
          * - **Other Xposed Frameworks:** Other frameworks might use a standard `PathClassLoader`
-         *   as the module's ClassLoader. A standard `PathClassLoader` typically delegates to
-         *   `parent.loadClass` *before* attempting `findClass` itself. If the host ClassLoader's parent
-         *   is replaced with another intermediary ClassLoader that attempts to load classes from the module
-         *   (see `SponsorBlockPatch.kt`), it could lead to infinite recursion.
+         *   as the module's ClassLoader. It delegates to its parent before trying its own classes,
+         *   so explicitly checking module classes here keeps the same module-first ordering.
          *
          * By inserting this intermediary ClassLoader and overriding `findClass` to prioritize
          * `self.findClass()`, we ensure that the module's classes are always checked first,

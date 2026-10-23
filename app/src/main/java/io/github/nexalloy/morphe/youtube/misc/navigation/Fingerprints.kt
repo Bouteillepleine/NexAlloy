@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.youtube.misc.navigation
 
+import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.ResourceType
@@ -12,12 +13,11 @@ import io.github.nexalloy.morphe.resourceLiteral
 import io.github.nexalloy.morphe.resourceMappings
 import io.github.nexalloy.morphe.returns
 import io.github.nexalloy.morphe.string
-import org.luckypray.dexkit.query.enums.StringMatchType
 
 val toolbarContainerId get() = resourceMappings["id", "toolbar_container"]
 
 object ToolbarLayoutFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.CONSTRUCTOR),
+    name = "<init>",
     filters = listOf(
         resourceLiteral(ResourceType.ID, "toolbar_container")
     )
@@ -72,6 +72,7 @@ internal object NavigationEnumFingerprint : Fingerprint(
 
 val navigationEnumClass = findClassDirect { NavigationEnumFingerprint().declaredClass!! }
 
+@get:RequireAppVersion(maxVersion = "21.43.000")
 val pivotBarButtonsCreateDrawableViewFingerprint = findMethodDirect {
     findMethod {
         matcher {

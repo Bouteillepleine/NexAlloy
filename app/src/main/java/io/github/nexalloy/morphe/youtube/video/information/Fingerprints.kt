@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.youtube.video.information
 
+import io.github.nexalloy.SkipTest
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.InstructionLocation.MatchAfterImmediately
@@ -13,15 +14,50 @@ import io.github.nexalloy.morphe.fieldAccess
 import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodDirect
+import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.literal
 import io.github.nexalloy.morphe.methodCall
 import io.github.nexalloy.morphe.opcode
+import io.github.nexalloy.morphe.shared.misc.videoinformation.seekSourceUnknownField
 import io.github.nexalloy.morphe.string
 import io.github.nexalloy.morphe.youtube.shared.PlaybackSpeedOnItemClickParentFingerprint
 import io.github.nexalloy.morphe.youtube.shared.VideoQualityChangedFingerprint
 import io.github.nexalloy.morphe.youtube.shared.VideoQualityClass
 import org.luckypray.dexkit.query.enums.OpCodeMatchType
 import org.luckypray.dexkit.result.FieldUsingType
+
+@SkipTest
+internal object ChannelInformationFingerprint : Fingerprint(
+    classFingerprint = PlayerInitFingerprint,
+    filters = listOf(string("loadVideo() called on LocalDirector in wrong state"))
+)
+
+internal val channelInformationMethods = findMethodListDirect {
+    ChannelInformationFingerprint.matchAll(2..3).map { it.method }.also { methods ->
+        check(methods.map { it.declaredClass!!.descriptor }.distinct().size == 1)
+    }
+}
+
+internal val playerResponseIsLiveMethod = findMethodDirect {
+    val playerResponseType = channelInformationMethods().first().paramTypes.first().descriptor
+    Fingerprint(
+        accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+        returnType = "V",
+        parameters = listOf("Ljava/lang/Object;"),
+        filters = listOf(
+            methodCall(definingClass = playerResponseType, returnType = "Z"),
+            methodCall(
+                definingClass = playerResponseType,
+                returnType = "Ljava/lang/String;",
+                location = MatchAfterWithin(30)
+            ),
+            string(
+                "com.google.android.apps.youtube.mdx.watch.LAST_MEALBAR_PROMOTED_LIVE_FEED_CHANNELS",
+                location = MatchAfterWithin(20)
+            )
+        )
+    ).instructionMatches.first().instruction.methodRef!!
+}
 
 internal object PlaybackSpeedOnItemClickFingerprint : Fingerprint(
     classFingerprint = PlaybackSpeedOnItemClickParentFingerprint,
@@ -86,7 +122,7 @@ val playerStatusMethod = findMethodDirect {
 }
 
 internal object PlayerInitFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.CONSTRUCTOR),
+    name = "<init>",
     custom = {
         declaredClass {
             addEqString("playVideo called on player response with no videoStreamingData.")
@@ -103,6 +139,10 @@ internal object SeekFingerprint : Fingerprint(
 
 val seekSourceType = findClassDirect {
     SeekFingerprint().paramTypes[1]
+}
+
+val seekSourceUnknown = findFieldDirect {
+    seekSourceUnknownField(seekSourceType().descriptor)
 }
 
 private object CreateVideoPlayerSeekbarFingerprint : Fingerprint(
@@ -158,6 +198,10 @@ object MdxSeekFingerprint : Fingerprint(
 
 val mdxSeekSourceType = findClassDirect {
     MdxSeekFingerprint().paramTypes[1]
+}
+
+val mdxSeekSourceUnknown = findFieldDirect {
+    seekSourceUnknownField(mdxSeekSourceType().descriptor)
 }
 
 internal object MdxPlayerDirectorSetVideoStageFingerprint : Fingerprint(
@@ -229,14 +273,8 @@ internal object PlaybackSpeedMenuSpeedChangedFingerprint : Fingerprint(
     returnType = "L",
     parameters = listOf("L"),
     filters = listOf(
-        fieldAccess(opcode = Opcode.IGET, type = "F"),
-        // Newer versions also have a handler that reads floats for other player settings.
-        methodCall(
-            opcode = Opcode.INVOKE_VIRTUAL,
-            parameters = listOf("F"),
-            returnType = "V",
-            location = MatchAfterImmediately()
-        )
+        opcode(Opcode.IF_EQZ),
+        fieldAccess(opcode = Opcode.IGET, type = "F")
     )
 )
 
