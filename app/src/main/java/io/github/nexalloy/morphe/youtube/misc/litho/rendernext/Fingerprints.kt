@@ -1,6 +1,7 @@
 package io.github.nexalloy.morphe.youtube.misc.litho.rendernext
 
 import io.github.nexalloy.RequireAppVersion
+import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.SkipTest
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
@@ -102,3 +103,16 @@ internal object RenderNextTemplateCheckFingerprint : Fingerprint(
         methodCall(smali = "Ljava/lang/String;->substring(II)Ljava/lang/String;"),
     )
 )
+
+const val ELEMENTS_SERVICES =
+    "com.google.android.libraries.multiplatform.elements.ElementsServices"
+
+@get:RequireAppVersion(minVersion = "21.43.000")
+val SectionContextConstructorFingerprint = findMethodDirect {
+    findMethod {
+        matcher {
+            name = "<init>"
+            paramCount(25, 60)
+        }
+    }.single { it.paramTypeNames.contains(ELEMENTS_SERVICES) }
+}

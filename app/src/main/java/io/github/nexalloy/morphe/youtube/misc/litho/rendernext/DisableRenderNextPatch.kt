@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.youtube.misc.litho.rendernext
 
+import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement
 import io.github.nexalloy.morphe.youtube.insertLiteralOverride
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
@@ -43,6 +44,14 @@ val disableRenderNextPatch = patch(
         ::RenderNextConfigFieldReadFingerprint.dexMethodList
             .filter { it.returnTypeName == "boolean" }
             .forEach { it.hookMethod(XC_MethodReplacement.returnConstant(false)) }
+
+        val elementsServicesIndex = ::SectionContextConstructorFingerprint.constructor
+            .parameterTypes.indexOfFirst { it.name == ELEMENTS_SERVICES }
+        ::SectionContextConstructorFingerprint.hookMethod(object : XC_MethodHook() {
+            override fun beforeHookedMethod(param: MethodHookParam) {
+                param.args[elementsServicesIndex] = null
+            }
+        })
 
         val configClass = configField.declaringClass
         configClass.declaredFields
