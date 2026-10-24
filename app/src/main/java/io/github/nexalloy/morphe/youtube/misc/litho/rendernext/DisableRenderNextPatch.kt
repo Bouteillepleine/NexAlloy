@@ -7,6 +7,7 @@ import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_29_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_47_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_43_or_greater
 import io.github.nexalloy.patch
+import java.lang.reflect.Modifier
 
 val disableRenderNextPatch = patch(
     description = "Disables RenderNext, so the app is always rendered with Litho.",
@@ -42,6 +43,14 @@ val disableRenderNextPatch = patch(
         ::RenderNextConfigFieldReadFingerprint.dexMethodList
             .filter { it.returnTypeName == "boolean" }
             .forEach { it.hookMethod(XC_MethodReplacement.returnConstant(false)) }
+
+        val configClass = configField.declaringClass
+        configClass.declaredFields
+            .firstOrNull { Modifier.isStatic(it.modifiers) && it.type == configClass }
+            ?.let { defaultInstanceField ->
+                defaultInstanceField.isAccessible = true
+                defaultInstanceField.get(null)?.let { configField.set(it, false) }
+            }
     }
 
     if (is_20_47_or_greater) {
