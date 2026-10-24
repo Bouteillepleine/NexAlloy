@@ -5,6 +5,7 @@ import io.github.nexalloy.morphe.youtube.insertLiteralOverride
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_29_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_47_or_greater
+import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_43_or_greater
 import io.github.nexalloy.patch
 
 val disableRenderNextPatch = patch(
@@ -35,6 +36,12 @@ val disableRenderNextPatch = patch(
     if (is_20_29_or_greater) {
         // Do not convert Litho components to RenderNext.
         RenderNextTemplateCheckFingerprint.hookMethod(XC_MethodReplacement.returnConstant(false))
+    }
+
+    if (is_21_43_or_greater) {
+        ::RenderNextConfigFieldReadFingerprint.dexMethodList
+            .filter { it.returnTypeName == "boolean" }
+            .forEach { it.hookMethod(XC_MethodReplacement.returnConstant(false)) }
     }
 
     if (is_20_47_or_greater) {
