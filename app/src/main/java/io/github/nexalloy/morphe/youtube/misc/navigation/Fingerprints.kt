@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.youtube.misc.navigation
 
+import java.lang.reflect.Modifier
 import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
@@ -153,5 +154,5 @@ val getNavIconResIdFingerprint = findMethodListDirect {
             paramTypes(navigationEnumClass.name, "boolean")
             returnType = "int"
         }
-    }
+    }.filter { !Modifier.isAbstract(it.modifiers) }
 }
