@@ -3,7 +3,6 @@ package io.github.nexalloy.morphe.youtube.misc.navigation
 import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.widget.FrameLayout
 import app.morphe.extension.shared.ResourceType
 import app.morphe.extension.shared.ResourceUtils
@@ -22,6 +21,11 @@ import io.github.nexalloy.scopedHook
 import org.luckypray.dexkit.wrap.DexMethod
 
 private val navigationButtonCreatedHooks = mutableListOf<(NavigationBar.NavigationButton, View) -> Unit>()
+private val bottomBarContainerHooks = mutableListOf<(View) -> Unit>()
+
+fun addBottomBarContainerHook(hook: (View) -> Unit) {
+    bottomBarContainerHooks.add(hook)
+}
 
 fun hookNavigationButtonCreated(hook: (button: NavigationBar.NavigationButton, view: View) -> Unit) {
     navigationButtonCreatedHooks.add(hook)
@@ -56,20 +60,20 @@ val NavigationBarHook = patch(
         scopedHook(
             PivotBarButtonsCreateResourceStyledViewFingerprint.member
         ) {
-            after {
-                val isYouTab = runCatching {
-                    Utils.getChildViewByResourceName<View>(
-                        it.result as ViewGroup,
-                        "you_tab_border"
-                    ) ?: throw Exception("You tab border not found")
-                }.isSuccess
-                if (isYouTab) {
-                    NavigationBar.setLastAppNavigationEnumYou()
-                }
-
-                NavigationBar.navigationTabLoaded(it.result as View)
-            }
+            after { NavigationBar.navigationImageResourceTabLoaded(it.result as View) }
         })
+
+    InitializeBottomBarContainerFingerprint.hookMethod(scopedHook(
+        ::bottomBarContainerListenerMethod.method
+    ) {
+        val bottomBarContainerId = ResourceUtils.getIdIdentifier("bottom_bar_container")
+        before {
+            val container = it.thisObject as View
+            if (innerDepth == 0 && container.id == bottomBarContainerId) {
+                bottomBarContainerHooks.forEach { hook -> hook(container) }
+            }
+        }
+    })
 
     val selectedTab = ThreadLocal<View>()
     PivotBarButtonsViewSetSelectedFingerprint.hookMethod {

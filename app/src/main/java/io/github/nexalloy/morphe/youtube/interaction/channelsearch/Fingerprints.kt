@@ -1,6 +1,5 @@
 package io.github.nexalloy.morphe.youtube.interaction.channelsearch
 
-import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.SkipTest
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
@@ -113,8 +112,23 @@ internal object SearchBoxHintFingerprint : Fingerprint(
     )
 )
 
-@RequireAppVersion("21.43.000")
-internal object SearchSubmitFingerprint3 : Fingerprint(
+val SearchSubmitFingerprint = findMethodDirect {
+    try {
+        SearchSubmitFingerprint2143()
+    } catch (_: Exception) {
+        try {
+            SearchSubmitFingerprint1()
+        } catch (_: Exception) {
+            SearchSubmitFingerprint2()
+        }
+    }
+}
+
+/**
+ * Every search submit path funnels through this method, including suggestions and filter chips.
+ */
+@SkipTest
+internal object SearchSubmitFingerprint2143 : Fingerprint(
     returnType = "V",
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     parameters = listOf(
@@ -128,7 +142,7 @@ internal object SearchSubmitFingerprint3 : Fingerprint(
         "Ljava/lang/String;"
     ),
     filters = listOf(
-        methodCall(
+        methodCall( // 21.43+
             parameters = listOf(
                 "Ljava/lang/String;",
                 "[B",
@@ -145,26 +159,13 @@ internal object SearchSubmitFingerprint3 : Fingerprint(
             ),
             returnType = "V"
         )
-    ),
+    )
 )
-
-val SearchSubmitFingerprint = findMethodDirect {
-    try {
-        SearchSubmitFingerprint3()
-    } catch (_: Exception) {
-        try {
-            SearchSubmitFingerprint1()
-        } catch (_: Exception) {
-            SearchSubmitFingerprint2()
-        }
-    }
-}
 
 /**
  * Every search submit path funnels through this method, including suggestions and filter chips.
  */
 @SkipTest
-@RequireAppVersion(maxVersion = "21.43.000")
 internal object SearchSubmitFingerprint1 : Fingerprint(
     returnType = "V",
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
@@ -178,7 +179,7 @@ internal object SearchSubmitFingerprint1 : Fingerprint(
         "Z"
     ),
     filters = listOf(
-        methodCall( // 21.31+
+        methodCall( // 21.31 - 21.42
             parameters = listOf(
                 "Ljava/lang/String;",
                 "[B",

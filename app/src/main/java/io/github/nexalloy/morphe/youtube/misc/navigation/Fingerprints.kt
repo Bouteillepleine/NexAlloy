@@ -3,6 +3,7 @@ package io.github.nexalloy.morphe.youtube.misc.navigation
 import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
+import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.ResourceType
 import io.github.nexalloy.morphe.accessFlags
 import io.github.nexalloy.morphe.findClassDirect
@@ -72,6 +73,9 @@ internal object NavigationEnumFingerprint : Fingerprint(
 
 val navigationEnumClass = findClassDirect { NavigationEnumFingerprint().declaredClass!! }
 
+/**
+ * 21.42 and earlier.
+ */
 @get:RequireAppVersion(maxVersion = "21.43.000")
 val pivotBarButtonsCreateDrawableViewFingerprint = findMethodDirect {
     findMethod {
@@ -122,6 +126,23 @@ internal object PivotBarConstructorFingerprint : Fingerprint(
         string("com.google.android.apps.youtube.app.endpoint.flags"),
     )
 )
+
+internal object InitializeBottomBarContainerFingerprint : Fingerprint(
+    name = "run",
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    filters = listOf(
+        resourceLiteral(ResourceType.ID, "bottom_bar_container"),
+        methodCall(
+            opcode = Opcode.INVOKE_VIRTUAL,
+            smali = $$"Landroid/view/View;->addOnLayoutChangeListener(Landroid/view/View$OnLayoutChangeListener;)V"
+        )
+    )
+)
+
+internal val bottomBarContainerListenerMethod = findMethodDirect {
+    InitializeBottomBarContainerFingerprint.instructionMatches.last().instruction.methodRef!!
+}
 
 val getNavIconResIdFingerprint = findMethodListDirect {
     // two matches in versions 20.24.xx-20.26.xx,
