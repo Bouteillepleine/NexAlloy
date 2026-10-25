@@ -12,6 +12,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
 
@@ -107,15 +111,14 @@ jobs:
     # receives work: `main` is pinned to upstream and never pushed, so gating on it would
     # mean no nightly is ever published. Skipped without a key, since an unsigned APK
     # cannot be installed.
-    - name: Create AutoBuild Release
+    - name: Update AutoBuild Release
       if: github.ref == 'refs/heads/MyNexAlloy' && env.HAS_KEYSTORE == 'true'
       run: |
         set -uo pipefail
         cd app/build/outputs/apk/release/
 
-        # Publish only once the APK actually exists. The old nightly is deleted to make way for
-        # the new one, so that deletion must not happen until there is something to replace it
-        # with — otherwise a build that produced no APK leaves no nightly at all.
+        # Touch the release only once the APK exists, so a build that produced nothing
+        # leaves the previous nightly intact.
         if [ ! -s app-release.apk ]; then
           echo '::error::No release APK was produced; leaving the existing nightly in place.'
           exit 1
@@ -123,16 +126,25 @@ jobs:
 
         LATEST_REL=$(gh release view --json tagName -q .tagName || true)
         GIT_DESCRIBE=$(git rev-parse --short HEAD)
-        mv app-release.apk "NexAlloy-${GIT_DESCRIBE}.apk"
+        APK_NAME="NexAlloy-${GIT_DESCRIBE}.apk"
+        mv app-release.apk "$APK_NAME"
         if [ -n "${LATEST_REL}" ]; then
           NOTES="Nightly build from commit ${GIT_DESCRIBE}. See changes: https://github.com/${{ github.repository }}/compare/${LATEST_REL}...MyNexAlloy"
         else
           NOTES="Nightly build from commit ${GIT_DESCRIBE}."
         fi
-        # --cleanup-tag: without it the `autobuild` tag outlives the delete, and the recreated
-        # release stays pinned to whichever commit first produced it.
-        gh release delete autobuild --yes --cleanup-tag || true
-        gh release create autobuild "NexAlloy-${GIT_DESCRIBE}.apk" --prerelease --title "Nightly Build ${GIT_DESCRIBE}" --notes "${NOTES}"
-        echo "Published nightly NexAlloy-${GIT_DESCRIBE}.apk" >> "$GITHUB_STEP_SUMMARY"
+
+        if ! gh release view autobuild >/dev/null 2>&1; then
+          gh release create autobuild --prerelease --title "Nightly Build ${GIT_DESCRIBE}" --notes "${NOTES}"
+        fi
+        PREVIOUS_ASSETS=$(gh release view autobuild --json assets --jq '.assets[].name' || true)
+        gh release upload autobuild "$APK_NAME" --clobber
+        gh release edit autobuild --prerelease --title "Nightly Build ${GIT_DESCRIBE}" --notes "${NOTES}"
+        while IFS= read -r asset; do
+          if [[ "$asset" == NexAlloy-*.apk && "$asset" != "$APK_NAME" ]]; then
+            gh release delete-asset autobuild "$asset" --yes
+          fi
+        done <<< "$PREVIOUS_ASSETS"
+        echo "Published nightly $APK_NAME" >> "$GITHUB_STEP_SUMMARY"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

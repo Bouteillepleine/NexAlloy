@@ -1,6 +1,5 @@
 package io.github.nexalloy.morphe.youtube.misc.navigation
 
-import java.lang.reflect.Modifier
 import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
@@ -153,6 +152,8 @@ val getNavIconResIdFingerprint = findMethodListDirect {
         matcher {
             paramTypes(navigationEnumClass.name, "boolean")
             returnType = "int"
+            // NexAlloy: newer versions also declare this signature on an abstract provider.
+            not { accessFlags(AccessFlags.ABSTRACT.modifier) }
         }
-    }.filter { !Modifier.isAbstract(it.modifiers) }
+    }
 }
