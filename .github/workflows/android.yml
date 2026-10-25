@@ -9,10 +9,6 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-concurrency:
   group: android-ci-${{ github.ref }}
   cancel-in-progress: false
 
