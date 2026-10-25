@@ -20,7 +20,20 @@ fun gitOutput(vararg args: String): String = runCatching {
     }.standardOutput.asText.get().trim()
 }.getOrDefault("")
 
-val gitCommitHash = gitOutput("git", "rev-parse", "--short", "HEAD").ifEmpty { "unknown" }
+// providers.exec is keyed on the command line, not on git state, so a reused configuration
+// cache entry pins the first hash it ever saw. Reading HEAD and the ref it points at makes
+// those files configuration inputs, so the entry is invalidated whenever a commit lands.
+val gitDir = rootProject.layout.projectDirectory.dir(".git")
+
+fun gitFileText(path: String): String? =
+    runCatching { providers.fileContents(gitDir.file(path)).asText.orNull?.trim() }.getOrNull()
+
+val gitHeadSha = gitFileText("HEAD")?.let { head ->
+    if (head.startsWith("ref: ")) gitFileText(head.removePrefix("ref: ")) else head
+}?.takeIf { it.matches(Regex("[0-9a-f]{40}")) }
+
+val gitCommitHash = (gitHeadSha?.take(7)
+    ?: gitOutput("git", "rev-parse", "--short", "HEAD")).ifEmpty { "unknown" }
 val gitCommitDate = gitOutput("git", "log", "-1", "--format=%ct").toLongOrNull() ?: 0L
 
 android {
