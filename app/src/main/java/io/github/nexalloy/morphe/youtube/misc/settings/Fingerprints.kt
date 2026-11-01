@@ -4,8 +4,8 @@ import io.github.nexalloy.morphe.findClassDirect
 import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.resourceMappings
-import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Modifier
+import org.luckypray.dexkit.query.enums.StringMatchType
 
 val PreferenceFragmentCompatClass = findClassDirect {
     findClass {

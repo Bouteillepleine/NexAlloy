@@ -8,9 +8,11 @@ import app.morphe.extension.shared.Logger
 import app.morphe.extension.shared.ResourceUtils
 import app.morphe.extension.shared.Utils
 import app.morphe.extension.shared.settings.preference.ImportExportPreference
+import app.morphe.extension.shared.settings.preference.SeekBarPreference
 import app.morphe.extension.shared.settings.preference.about.MorpheAboutPreference
 import de.robv.android.xposed.XC_MethodReplacement
 import io.github.nexalloy.R
+import io.github.nexalloy.hookMethod
 import io.github.nexalloy.morphe.music.shared.MusicActivityOnCreateFingerprint
 import io.github.nexalloy.morphe.shared.misc.settings.preference.BasePreferenceScreen
 import io.github.nexalloy.morphe.shared.misc.settings.preference.InputType
@@ -57,6 +59,11 @@ val SettingsHook = patch(
 
     PreferenceScreen.MISC.addPreferences(
         NonInteractivePreference(
+            key = "morphe_settings_new_indicator_days",
+            tag = SeekBarPreference::class.java,
+            selectable = true
+        ),
+        NonInteractivePreference(
             key = "morphe_music_app_language",
             summaryKey = null,
             tag = AppLanguagePreference::class.java,
@@ -89,7 +96,18 @@ val SettingsHook = patch(
 
     // Remove other methods as they will break as the onCreate method is modified above.
     ::googleApiActivityNOTonCreate.dexMethodList.forEach {
-        if (it.returnTypeName == "void") it.hookMethod(XC_MethodReplacement.DO_NOTHING)
+        if (it.returnTypeName == "void" && it.name != "finish") {
+            it.hookMethod(XC_MethodReplacement.DO_NOTHING)
+        }
+    }
+
+    val settingsActivityClass = ::googleApiActivityClass.clazz
+    settingsActivityClass.getMethod("finish").hookMethod {
+        before {
+            if (settingsActivityClass.isInstance(it.thisObject) &&
+                MusicActivityHook.handleFinish(it.thisObject as Activity)
+            ) it.result = null
+        }
     }
 
     MusicActivityOnCreateFingerprint.hookMethod {

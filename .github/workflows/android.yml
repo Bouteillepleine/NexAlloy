@@ -122,20 +122,25 @@ jobs:
 
         LATEST_REL=$(gh release view --json tagName -q .tagName || true)
         GIT_DESCRIBE=$(git rev-parse --short HEAD)
+        BUILD_TIME=$(TZ=UTC date --iso-8601=seconds)
+        BUILD_TIME_TEXT=$(LC_ALL=C TZ=UTC date --date="$BUILD_TIME" '+%B %-d, %Y %H:%M')
+        RELEASE_NOTES=$(mktemp)
+        cat > "$RELEASE_NOTES" <<EOF
+        Nightly build from commit ${GIT_DESCRIBE}.
+        Build time: <relative-time tense="past" datetime="${BUILD_TIME}">${BUILD_TIME_TEXT}</relative-time>
+        See changes: https://github.com/${{ github.repository }}/compare/${LATEST_REL}...MyNexAlloy
+        EOF
         APK_NAME="NexAlloy-${GIT_DESCRIBE}.apk"
         mv app-release.apk "$APK_NAME"
-        if [ -n "${LATEST_REL}" ]; then
-          NOTES="Nightly build from commit ${GIT_DESCRIBE}. See changes: https://github.com/${{ github.repository }}/compare/${LATEST_REL}...MyNexAlloy"
-        else
-          NOTES="Nightly build from commit ${GIT_DESCRIBE}."
-        fi
 
         if ! gh release view autobuild >/dev/null 2>&1; then
-          gh release create autobuild --prerelease --title "Nightly Build ${GIT_DESCRIBE}" --notes "${NOTES}"
+          gh release create autobuild --prerelease --title "Nightly Build ${GIT_DESCRIBE}" --notes-file "$RELEASE_NOTES"
         fi
         PREVIOUS_ASSETS=$(gh release view autobuild --json assets --jq '.assets[].name' || true)
         gh release upload autobuild "$APK_NAME" --clobber
-        gh release edit autobuild --prerelease --title "Nightly Build ${GIT_DESCRIBE}" --notes "${NOTES}"
+        gh release edit autobuild --prerelease \
+          --title "Nightly Build ${GIT_DESCRIBE}" \
+          --notes-file "$RELEASE_NOTES"
         while IFS= read -r asset; do
           if [[ "$asset" == NexAlloy-*.apk && "$asset" != "$APK_NAME" ]]; then
             gh release delete-asset autobuild "$asset" --yes

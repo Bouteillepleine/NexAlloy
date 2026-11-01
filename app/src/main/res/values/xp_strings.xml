@@ -42,4 +42,5 @@
     <string name="unknown_app_summary">This app is no longer part of NexAlloy.</string>
     <string name="service_unavailable_title">Xposed service unavailable</string>
     <string name="service_unavailable_summary">NexAlloy cannot reach the Xposed framework, so patch settings cannot be read or saved. Make sure the module is enabled in LSPosed Manager.</string>
+    <string name="check_beta_updates_title">Check for Nightly build updates</string>
 </resources>

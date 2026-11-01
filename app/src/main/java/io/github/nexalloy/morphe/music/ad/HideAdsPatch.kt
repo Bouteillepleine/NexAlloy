@@ -3,22 +3,21 @@ package io.github.nexalloy.morphe.music.ad
 import android.view.View
 import app.morphe.extension.music.patches.HideAdsPatch
 import app.morphe.extension.music.patches.components.AdsFilter
-import app.morphe.extension.shared.Logger
-import app.morphe.extension.shared.ResourceUtils
-import io.github.nexalloy.morphe.music.misc.litho.filter.LithoFilter
+import io.github.nexalloy.morphe.music.misc.litho.filter.lithoFilterPatch
 import io.github.nexalloy.morphe.music.misc.settings.PreferenceScreen
 import io.github.nexalloy.morphe.shared.ad.HideFullscreenAds
 import io.github.nexalloy.morphe.shared.misc.litho.filter.addLithoFilter
 import io.github.nexalloy.morphe.shared.misc.settings.preference.SwitchPreference
 import io.github.nexalloy.patch
+import io.github.nexalloy.scopedHook
 
-val HideAds = patch(
+val hideAdsPatch = patch(
     name = "Hide ads",
     description = "Adds options to hide fullscreen ads, Premium promotions and video ads."
 ) {
     dependsOn(
         HideFullscreenAds(PreferenceScreen.ADS),
-        LithoFilter,
+        lithoFilterPatch,
     )
 
     PreferenceScreen.ADS.addPreferences(
@@ -30,20 +29,14 @@ val HideAds = patch(
     addLithoFilter(AdsFilter())
 
     // Hide 'Get Music Premium' label
-    HideGetPremiumFingerprint.hookMethod {
-        val id = ResourceUtils.getIdIdentifier("unlimited_panel")
-        after { param ->
-            val thiz = param.thisObject
-            for (field in thiz.javaClass.fields) {
-                val view = field.get(thiz)
-                if (view !is View) continue
-                val panelView = view.findViewById<View>(id) ?: continue
-                Logger.printDebug { "hide get premium" }
-                panelView.visibility = View.GONE
-                break
+    val premiumView = ::getPremiumViewField.field
+    HideGetPremiumFingerprint.hookMethod(scopedHook(::getPremiumSetVisibilityMethod.method) {
+        before {
+            if (it.thisObject === premiumView.get(outerParam.thisObject)) {
+                it.args[0] = View.GONE
             }
         }
-    }
+    })
 
     MembershipSettingsFingerprint.hookMethod {
         before {
@@ -57,4 +50,7 @@ val HideAds = patch(
         }
     }
 
+    FloatingLayoutFingerprint.hookMethod {
+        after { HideAdsPatch.hidePremiumPromotionBottomSheet(it.result as View) }
+    }
 }

@@ -4,7 +4,6 @@ import android.graphics.Canvas
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.widget.TextView
 import app.morphe.extension.youtube.innertube.BrowseResponseOuterClass.BrowseTab
 import app.morphe.extension.youtube.innertube.BrowseResponseOuterClass.TabRenderer
@@ -28,20 +27,22 @@ import io.github.nexalloy.morphe.youtube.layout.hide.shorts.ShortsBottomBarConta
 import io.github.nexalloy.morphe.youtube.misc.contexthook.Endpoint
 import io.github.nexalloy.morphe.youtube.misc.contexthook.addOSNameHook
 import io.github.nexalloy.morphe.youtube.misc.contexthook.clientContextHookPatch
+import io.github.nexalloy.morphe.youtube.misc.fix.padding.BrowseListBottomPaddingFingerprint
+import io.github.nexalloy.morphe.youtube.misc.fix.padding.browseListSetPaddingMethod
+import io.github.nexalloy.morphe.youtube.misc.fix.padding.fixPagePaddingPatch
 import io.github.nexalloy.morphe.youtube.misc.navigation.NavigationBarHook
 import io.github.nexalloy.morphe.youtube.misc.navigation.addBottomBarContainerHook
 import io.github.nexalloy.morphe.youtube.misc.navigation.hookNavigationButtonCreated
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
-import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_26_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_31_or_greater
-import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_07_or_greater
+import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_23_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_35_or_greater
 import io.github.nexalloy.morphe.youtube.misc.settings.PreferenceScreen
 import io.github.nexalloy.patch
 import io.github.nexalloy.scopedHook
-import org.luckypray.dexkit.wrap.DexMethod
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import org.luckypray.dexkit.wrap.DexMethod
 
 private lateinit var navigationBarPaddingField: Field
 private lateinit var navigationBarUpdateHeightMethod: Method
@@ -75,6 +76,7 @@ val NavigationBar = patch(
             + "and the upper navigation toolbar.",
 ) {
     dependsOn(
+        fixPagePaddingPatch,
         NavigationBarHook,
         VersionCheck,
         clientContextHookPatch,
@@ -105,7 +107,7 @@ val NavigationBar = patch(
     navPreferences += setOf(
         SwitchPreference("morphe_hide_navigation_new_content_dot"),
         SwitchPreference("morphe_navigation_bar_animations", summary = true),
-//        SwitchPreference("morphe_disable_translucent_navigation", summary = true)
+//        ListPreference("morphe_navigation_bar_style")
     )
 
     if (is_20_31_or_greater) {
@@ -119,6 +121,24 @@ val NavigationBar = patch(
             preferences = navPreferences
         )
     )
+
+    // Some pages have their own toolbar, whose buttons are created with their renderer.
+    val toolbarConstructor = ::toolbarButtonConstructor.constructor
+    val countIdsIndex = toolbarConstructor.parameterTypes.indexOfFirst { it == List::class.java }
+    check(countIdsIndex > 0)
+    val rendererIndex = countIdsIndex - 1
+    toolbarConstructor.hookMethod {
+        before {
+            val renderer = it.args[rendererIndex] ?: return@before
+            val updated = NavigationBarPatch.swapToolbarNotificationButton(
+                renderer, renderer.callMethod("toByteArray") as ByteArray
+            )
+            it.args[rendererIndex] = updated
+            @Suppress("UNCHECKED_CAST")
+            val countIds = it.args[countIdsIndex] as List<String>
+            it.args[countIdsIndex] = NavigationBarPatch.getToolbarButtonCountIds(updated, countIds)
+        }
+    }
 
     // Swap create with notifications button.
     addOSNameHook(
@@ -143,29 +163,21 @@ val NavigationBar = patch(
 
     // Turning on the feature flags of the translucent navigation bar, and the fixes for what
     // they break. Every fix checks that the flags are turned on by this patch, so the fixes do
-    // nothing if the flags are left to the account.
-
-    // The translucent navigation bar comes from three feature flags that not every account
-    // gets, so they are turned on to make the bar look the same on every account, and the opaque
-    // option below paints over the same translucent bar everywhere. The flag that makes the bar
-    // cover the system navigation buttons is turned on only when the window is drawn edge to
-    // edge. The blur and the feed behind the bar do not change the room left for the system
-    // navigation buttons, so they are also turned on without it.
+    // nothing if the flags are left to the account, as with the default navigation bar style.
     insertLiteralOverride(45630927L, NavigationBarPatch::useTranslucentNavigationBarBackground)
     insertLiteralOverride(45632194L, NavigationBarPatch::useTranslucentNavigationBar)
-    insertLiteralOverride(45631257L, NavigationBarPatch::useTranslucentNavigationBarBackground)
+    insertLiteralOverride(45631257L, NavigationBarPatch::useFeedBehindNavigationBar)
 
-    // Android 12 and 13 can submit the player surface from two threads while drawing the blur.
-    // The translucent color is retained, and only the duplicate blurred drawing is disabled.
-    if (Build.VERSION.SDK_INT in 31..33) {
+    // Transparent and opaque styles omit the blur, which can crash Android 12 and 13.
+    if (Build.VERSION.SDK_INT >= 29) {
         val canvases = listOf(
             Canvas::class.java,
             Class.forName("android.graphics.RecordingCanvas")
         )
         canvases.map { it.getMethod("isHardwareAccelerated") }.distinct().forEach { hardwareAccelerated ->
             NavigationBarBlurDrawFingerprint.hookMethod(scopedHook(hardwareAccelerated) {
-                before {
-                    if (NavigationBarPatch.isTranslucentNavigationBarBackgroundForced()) it.result = false
+                after {
+                    it.result = NavigationBarPatch.useNavigationBarBlur(it.result as Boolean)
                 }
             })
         }
@@ -208,52 +220,10 @@ val NavigationBar = patch(
     // replies, so an empty band is left between them.
     insertLiteralOverride(45752241L, NavigationBarPatch::useFixedBottomBarRoom)
 
-    // A flag gives the pages the height of the navigation bar and the miniplayer in another way,
-    // which leaves wrong padding in some pages, such as the incognito search. It is turned off.
-    if (is_21_07_or_greater) {
-        insertLiteralOverride(45724388L, false)
-    }
-
     // The slim status bar ("No connection", "Back online") is laid out below the bar covering
     // the system navigation buttons, so the buttons cover it. The room for the buttons is moved
     // below it while it is shown.
     addBottomBarContainerHook(NavigationBarPatch::watchSlimStatusBar)
-
-    // The keyboard branch reads its insets before constructing the bottom-margin update.
-    // Replace that margin where it is consumed, while leaving the other margins unchanged.
-    PageBottomMarginFingerprint.hookMethod(scopedHook(::pageKeyboardInsetsMethod.method) {
-        before { outerParam.setObjectExtra("navigationKeyboardMargin", true) }
-    })
-    PageBottomMarginFingerprint.hookMethod(scopedHook(::pageBottomMarginConstructor.constructor) {
-        before {
-            if (it.args[1] == 1 && outerParam.getObjectExtra("navigationKeyboardMargin") == true &&
-                NavigationBarPatch.isTranslucentNavigationBarForced()) {
-                it.args[0] = 0
-                NavigationBarPatch.setKeyboardMarginRemoved()
-            }
-        }
-    })
-
-    // A feed behind the navigation bar includes the keyboard in its bottom padding.
-    if (is_20_26_or_greater && Build.VERSION.SDK_INT >= 30) {
-        val setFeedPadding = View::class.java.getMethod(
-            "setPadding", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
-            Int::class.javaPrimitiveType, Int::class.javaPrimitiveType
-        )
-        FeedListPaddingFingerprint.hookMethod(scopedHook(setFeedPadding) {
-            before {
-                if (innerDepth != 0) return@before
-                if (!NavigationBarPatch.isTranslucentNavigationBarBackgroundForced()) return@before
-                val insets = (it.thisObject as View).rootWindowInsets ?: return@before
-                val keyboard = insets.getInsets(WindowInsets.Type.ime()).bottom
-                val systemBars = insets.getInsets(WindowInsets.Type.systemBars()).bottom
-                val bottom = it.args[3] as Int
-                if (bottom >= keyboard && keyboard > systemBars) {
-                    it.args[3] = bottom - keyboard + systemBars
-                }
-            }
-        })
-    }
 
     // When a browse page is laid out behind the navigation bar, its list is set to draw into
     // its padding, and the padding is set later, once the window insets are known. If the list
@@ -298,10 +268,10 @@ val NavigationBar = patch(
     // disableAutoHidingNavigationBar
 
     if (is_20_31_or_greater) {
-        listOf(
-            AutoHideNavigationBarOnFeedScrollingFingerprint,
-            AutoHideNavigationBarOnDismissMiniplayerFingerprint,
-        ).forEach {
+        buildList {
+            add(AutoHideNavigationBarOnFeedScrollingFingerprint)
+            if (is_21_23_or_greater) add(AutoHideNavigationBarOnDismissMiniplayerFingerprint)
+        }.forEach {
             it.hookMethod {
                 before { param ->
                     if (NavigationBarPatch.disableAutoHidingNavigationBar()) {

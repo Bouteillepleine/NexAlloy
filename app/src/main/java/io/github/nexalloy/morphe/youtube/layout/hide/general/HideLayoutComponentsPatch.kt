@@ -42,8 +42,10 @@ import io.github.nexalloy.morphe.youtube.misc.engagement.EngagementPanelHook
 import io.github.nexalloy.morphe.youtube.misc.litho.filter.LithoFilter
 import io.github.nexalloy.morphe.youtube.misc.litho.node.TreeNodeElementHook
 import io.github.nexalloy.morphe.youtube.misc.navigation.NavigationBarHook
+import io.github.nexalloy.morphe.youtube.misc.navigation.addBrowseIdHook
+import io.github.nexalloy.morphe.youtube.misc.navigation.addSearchResultsHook
+import io.github.nexalloy.morphe.youtube.misc.navigation.browseIdHookPatch
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
-import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_26_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_31_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_11_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_26_or_greater
@@ -60,6 +62,7 @@ val HideLayoutComponents = patch(
     description = "Adds options to hide general layout components.",
 ) {
     dependsOn(
+        browseIdHookPatch,
         aiSListPatch,
         LithoFilter,
         EngagementPanelHook,
@@ -270,15 +273,7 @@ val HideLayoutComponents = patch(
         SwitchPreference("morphe_hide_channel_buttons", summary = true),
         SwitchPreference("morphe_hide_community_posts"),
         SwitchPreference("morphe_hide_compact_banner", summary = true),
-        if (is_20_26_or_greater) {
-            ListPreference("morphe_hide_expandable_card")
-        } else {
-            ListPreference(
-                key = "morphe_hide_expandable_card",
-                entriesKey = "morphe_hide_expandable_card_legacy_entries",
-                entryValuesKey = "morphe_hide_expandable_card_legacy_entry_values"
-            )
-        },
+        ListPreference("morphe_hide_expandable_card"),
         noTitleUnsortedPreferenceCategory(
             SwitchPreference("morphe_hide_feed_flyout_menu"),
             TextPreference(
@@ -291,7 +286,8 @@ val HideLayoutComponents = patch(
 //            TextPreference(
 //                "morphe_hide_account_menu_filter_strings",
 //                inputType = InputType.TEXT_MULTI_LINE
-//            )
+//            ),
+//            SwitchPreference("morphe_hide_account_menu_downloads") // TODO: Account menu filtering.
 //        ),
 //        SwitchPreference("morphe_hide_floating_microphone_button", summary = true),
         SwitchPreference("morphe_hide_get_premium_button"),
@@ -314,6 +310,7 @@ val HideLayoutComponents = patch(
         SwitchPreference("morphe_hide_subscribed_channels_bar_names", summary = true),
         SwitchPreference("morphe_hide_surveys", summary = true),
         SwitchPreference("morphe_hide_ticket_shelf"),
+        SwitchPreference("morphe_hide_unavailable_videos_hidden_banner", summary = true),
 //        SwitchPreference(
 //            "morphe_hide_upload_time",
 //            summary = true,
@@ -349,6 +346,8 @@ val HideLayoutComponents = patch(
         ),
     )
 
+    addBrowseIdHook(LayoutComponentsFilter::setBrowseId)
+    addSearchResultsHook(LayoutComponentsFilter::clearBrowseId)
     addLithoFilter(LayoutComponentsFilter())
     addLithoFilter(DescriptionComponentsFilter())
     if (is_20_31_or_greater) {
@@ -368,6 +367,9 @@ val HideLayoutComponents = patch(
         after {
             val bytes = it.args[2] as ByteArray
             if (LayoutComponentsFilter.filterMixPlaylists(bytes)) {
+                app.morphe.extension.shared.patches.components.LithoFilterPatch.removeFilteredElementListItem(
+                    io.github.nexalloy.morphe.shared.misc.litho.context.ConversionContext(it.args[1])
+                )
                 it.result = emptyComponent
             }
         }

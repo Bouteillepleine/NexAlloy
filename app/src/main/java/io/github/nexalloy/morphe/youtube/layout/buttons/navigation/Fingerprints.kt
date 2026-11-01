@@ -17,6 +17,7 @@ import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.literal
 import io.github.nexalloy.morphe.methodCall
 import io.github.nexalloy.morphe.opcode
+import io.github.nexalloy.morphe.opcodeEnum
 import io.github.nexalloy.morphe.string
 import io.github.nexalloy.morphe.youtube.layout.hide.shorts.ShortsBottomBarContainerFingerprint
 import java.lang.reflect.Modifier
@@ -114,63 +115,25 @@ internal object AutoHideNavigationBarOnFeedScrollingFingerprint : Fingerprint(
     )
 )
 
+/**
+ * Moves the navigation bar out of the screen while the miniplayer is dragged to be dismissed.
+ * Other listeners of the same drag cancel autoplay, so only the navigation bar listener is hooked.
+ * Before 21.23 the method of the navigation bar for this drag is empty.
+ */
+@RequireAppVersion(minVersion = "21.23.000")
 internal object AutoHideNavigationBarOnDismissMiniplayerFingerprint : Fingerprint(
-    accessFlags = listOf(AccessFlags.PRIVATE, AccessFlags.FINAL),
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "V",
     parameters = listOf("F"),
     filters = listOf(
-        literal(2),
-        methodCall(
-            smali = "Ljava/lang/Integer;->valueOf(I)Ljava/lang/Integer;",
-            location = MatchAfterWithin(5)
-        ),
-        methodCall(
-            smali = "Ljava/util/Set;->iterator()Ljava/util/Iterator;",
-            location = MatchAfterWithin(5)
-        ),
-        methodCall(
-            smali = "Ljava/util/Iterator;->hasNext()Z",
-            location = MatchAfterWithin(5)
-        ),
-        methodCall(
-            smali = "Ljava/util/Iterator;->next()Ljava/lang/Object;",
-            location = MatchAfterWithin(5)
-        )
-    )
-)
-
-internal object PageBottomMarginFingerprint : Fingerprint(
-    returnType = "V",
-    parameters = listOf("Landroid/graphics/Rect;"),
-    filters = listOf(
-        methodCall(smali = "Landroid/view/View;->findFocus()Landroid/view/View;"),
-        methodCall(
-            smali = "Landroid/view/View;->onCheckIsTextEditor()Z",
-            location = MatchAfterWithin(5)
-        ),
-        fieldAccess(
-            opcode = Opcode.IGET,
-            definingClass = "Landroid/graphics/Rect;",
-            name = "bottom"
-        )
-    )
-)
-
-@RequireAppVersion(minVersion = "20.26.000")
-@StrictQuery
-internal object FeedListPaddingFingerprint : Fingerprint(
-    returnType = "V",
-    parameters = listOf(),
-    filters = listOf(
-        methodCall(
-            definingClass = "Landroid/support/v7/widget/RecyclerView;",
-            name = "setClipToPadding"
-        ),
-        methodCall(
-            definingClass = "Landroid/support/v7/widget/RecyclerView;",
-            name = "setPadding",
-            location = MatchAfterImmediately()
-        )
+        opcode(Opcode.IGET),
+        opcode(Opcode.IGET, location = MatchAfterImmediately()),
+        opcode(Opcode.ADD_INT_2ADDR, location = MatchAfterImmediately()),
+        opcode(Opcode.INT_TO_FLOAT, location = MatchAfterImmediately()),
+        opcode(Opcode.MUL_FLOAT_2ADDR, location = MatchAfterImmediately()),
+        opcode(Opcode.IPUT, location = MatchAfterImmediately()),
+        opcode(Opcode.INVOKE_VIRTUAL, location = MatchAfterImmediately()),
+        opcode(Opcode.RETURN_VOID, location = MatchAfterImmediately())
     )
 )
 
@@ -190,37 +153,6 @@ internal object NavigationBarBlurDrawFingerprint : Fingerprint(
     )
 )
 
-/**
- * Sets the bottom padding of the list of a browse page laid out behind the navigation bar,
- * to the navigation bar height plus the bottom window inset, once the window insets are known.
- */
-@StrictQuery
-internal object BrowseListBottomPaddingFingerprint : Fingerprint(
-    returnType = "V",
-    parameters = listOf("Ljava/lang/Object;"),
-    filters = listOf(
-        methodCall(
-            definingClass = "Landroid/support/v7/widget/RecyclerView;",
-            name = "getPaddingRight"
-        ),
-        fieldAccess(
-            opcode = Opcode.IGET,
-            definingClass = "Landroid/graphics/Rect;",
-            name = "bottom",
-            location = MatchAfterWithin(6)
-        ),
-        methodCall(
-            definingClass = "Landroid/support/v7/widget/RecyclerView;",
-            name = "setPadding",
-            location = MatchAfterWithin(3)
-        )
-    )
-)
-
-internal val browseListSetPaddingMethod = findMethodDirect {
-    BrowseListBottomPaddingFingerprint.instructionMatches.last().instruction.methodRef!!
-}
-
 internal val shortsBottomRoomConstructor = findMethodDirect {
     val match = ShortsBottomBarContainerFingerprint.match()
     match.method.instructions.drop(match.instructionMatches[2].index + 1).first {
@@ -231,28 +163,6 @@ internal val shortsBottomRoomConstructor = findMethodDirect {
             view.descriptor == "Landroid/view/View;" && height.descriptor == "I"
         })
     }
-}
-
-internal val pageBottomMarginConstructor = findMethodDirect {
-    val match = PageBottomMarginFingerprint.match()
-    match.method.instructions.drop(match.instructionMatches.last().index + 1).first {
-        it.methodRef?.name == "<init>" &&
-                it.methodRef?.paramTypes?.map { it.descriptor } == listOf("I", "I", "[B")
-    }.methodRef!!
-}
-
-internal val pageKeyboardInsetsMethod = findMethodDirect {
-    val match = PageBottomMarginFingerprint.match()
-    val instructions = match.method.instructions
-    // Newer targets read the keyboard inset through a helper without calling getRootView.
-    // Both forms occur only on the keyboard branch, immediately before the Rect.bottom fallback.
-    instructions.subList(
-        match.instructionMatches[1].index + 1,
-        match.instructionMatches.last().index
-    ).last {
-            it.opcode in listOf(Opcode.INVOKE_STATIC.opCode, Opcode.INVOKE_STATIC_RANGE.opCode) &&
-                    it.methodRef?.paramTypes?.map { it.descriptor } == listOf("Landroid/view/View;")
-        }.methodRef!!
 }
 
 internal object PivotBarRendererFingerprint : Fingerprint(
@@ -293,6 +203,7 @@ internal val pivotBarItemMessageField = findFieldDirect {
 }
 
 @RequireAppVersion(minVersion = "21.35.000")
+@StrictQuery
 internal object PivotBarRendererListFingerprint : Fingerprint(
     parameters = listOf("L"),
     returnType = "V",
@@ -300,7 +211,8 @@ internal object PivotBarRendererListFingerprint : Fingerprint(
         fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = "this", type = "L"),
         methodCall(opcode = Opcode.INVOKE_STATIC, parameters = listOf("L"), returnType = "L"),
         fieldAccess(opcode = Opcode.IPUT_OBJECT, definingClass = "this", type = "L"),
-        literal(45633821L)
+        // The new list is compared to the previous list.
+        methodCall(smali = "Ljava/lang/Class;->isInstance(Ljava/lang/Object;)Z")
     )
 )
 
@@ -368,4 +280,18 @@ internal val pivotBarIconTypeLookupMethod = findMethodDirect {
         returnType = iconType,
         parameters = listOf("I")
     ).match().method
+}
+
+internal val toolbarButtonConstructor = findMethodDirect {
+    val toolbar = io.github.nexalloy.morphe.youtube.misc.toolbar.ToolBarButtonFingerprint.match()
+    val instructions = toolbar.method.instructions
+    val actionIndex = instructions.indexOfFirst { it.methodRef?.name == "setShowAsAction" }
+    val rendererType = instructions.drop(actionIndex).first {
+        it.opcodeEnum == Opcode.IGET_OBJECT
+    }.fieldRef!!.type!!
+    toolbar.method.declaredClass!!.methods.single { method ->
+        method.name == "<init>" && method.paramTypes.withIndex().any { (index, type) ->
+            type == rendererType && method.paramTypes.getOrNull(index + 1)?.descriptor == "Ljava/util/List;"
+        }
+    }
 }

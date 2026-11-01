@@ -10,9 +10,11 @@ import io.github.nexalloy.morphe.checkCast
 import io.github.nexalloy.morphe.fieldAccess
 import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodDirect
+import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.literal
 import io.github.nexalloy.morphe.methodCall
 import io.github.nexalloy.morphe.opcode
+import io.github.nexalloy.morphe.opcodeEnum
 import io.github.nexalloy.morphe.string
 import java.lang.reflect.Modifier
 import org.luckypray.dexkit.DexKitBridge
@@ -218,4 +220,78 @@ internal val offlineabilityDefaultInstance = findFieldDirect {
 
 internal val offlineUpsellDefaultInstance = findFieldDirect {
     defaultInstance(OfflineUpsellResponseFingerprint.instructionMatches.first().instruction.classRef!!)
+}
+
+/**
+ * Saves or removes a playlist, such as from the Download button of a playlist page header.
+ */
+internal object OfflinePlaylistEndpointFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    parameters = listOf(
+        "L",
+        "Ljava/util/Map;",
+        "Ljava/lang/String;", // Playlist ID
+        "L", // Action
+    ),
+    filters = listOf(
+        anyInstruction(
+            string("Unsupported Offline Playlist Action: "), // 20.x
+            string("Unsupported Offline Playlist Action: %d") // 21.x
+        )
+    ),
+    custom = {
+        addAnyOf { addEqString("Unsupported Offline Playlist Action: ") }
+        addAnyOf { addEqString("Unsupported Offline Playlist Action: %d") }
+    }
+)
+
+/**
+ * Updates the offline state of a saved video with the state of the 'player/refresh' response.
+ * Matches two methods, one for each of the two ways the app refreshes saved videos.
+ */
+@SkipTest
+internal object UpdateOfflineVideoPolicyFingerprint : Fingerprint(
+    returnType = "V",
+    parameters = listOf(
+        "L",
+        "J", // Time of the refresh.
+        "L", // Offline state.
+        "L" // Video policy.
+    ),
+    filters = listOf(
+        anyInstruction(
+            string("[Offline] UpdateVideoPolicy failed for video "), // 20.x
+            string("[Offline] UpdateVideoPolicy failed for video %s") // 21.x
+        )
+    ),
+    custom = {
+        addAnyOf { addEqString("[Offline] UpdateVideoPolicy failed for video ") }
+        addAnyOf { addEqString("[Offline] UpdateVideoPolicy failed for video %s") }
+    }
+)
+
+internal val updateOfflineVideoPolicyMethods = findMethodListDirect {
+    UpdateOfflineVideoPolicyFingerprint.matchAll(2..2).map { it.method }
+}
+
+internal val offlineStateDefaultInstance = findFieldDirect {
+    defaultInstance(updateOfflineVideoPolicyMethods().first().paramTypes[2])
+}
+
+/** Reads the interaction logger interface from the context of commands. */
+internal val interactionLoggerClass = io.github.nexalloy.morphe.findClassDirect {
+    findMethod {
+        matcher { usingStrings("com.google.android.libraries.youtube.logging.interaction_logger") }
+    }.flatMap { method ->
+        method.instructions.zipWithNext().mapNotNull { (key, type) ->
+            if (key.string == "com.google.android.libraries.youtube.logging.interaction_logger" &&
+                type.opcodeEnum == Opcode.CONST_CLASS) type.classRef else null
+        }
+    }.distinctBy { it.descriptor }.single()
+}
+
+internal val noOpInteractionLogger = findFieldDirect {
+    val type = interactionLoggerClass()
+    type.fields.single { Modifier.isStatic(it.modifiers) && it.type == type }
 }

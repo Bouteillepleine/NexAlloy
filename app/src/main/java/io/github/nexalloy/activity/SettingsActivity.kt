@@ -5,7 +5,6 @@ package io.github.nexalloy.activity
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -16,7 +15,6 @@ import android.preference.PreferenceFragment
 import android.text.format.DateUtils
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
 import app.morphe.extension.shared.Utils
 import app.morphe.extension.shared.settings.preference.about.MorpheAboutPreference
@@ -25,9 +23,8 @@ import io.github.nexalloy.AppPatchInfo
 import io.github.nexalloy.BuildConfig
 import io.github.nexalloy.R
 import io.github.nexalloy.appPatchConfigurations
+import io.github.nexalloy.common.CHECK_BETA_UPDATES
 import io.github.nexalloy.common.UpdateChecker
-import io.github.nexalloy.isInstalled
-import io.github.nexalloy.selectablePatches
 import kotlin.system.exitProcess
 
 class SettingsActivity : Activity(), SettingApplication.ServiceStateListener {
@@ -70,24 +67,33 @@ class SettingsActivity : Activity(), SettingApplication.ServiceStateListener {
 
     override fun onServiceStateChanged(service: XposedService?) {
         mService = service
+        runOnUiThread { invalidateOptionsMenu() }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.xp_settings_menu, menu)
         menu.findItem(R.id.menu_disable_auto_check).isVisible = false
+        menu.findItem(R.id.menu_check_beta_updates).isVisible = false
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        menu.findItem(R.id.menu_hide_icon).isChecked = isLauncherIconHidden()
+        val aliasName = ComponentName(this, SettingsActivity::class.java.name + "Alias")
+        menu.findItem(R.id.menu_hide_icon).isChecked =
+            packageManager.getComponentEnabledSetting(aliasName) == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
 
         val menuDisableAutoCheck = menu.findItem(R.id.menu_disable_auto_check)
-        val prefs = modulePreferences()
-        if (prefs != null) {
-            menuDisableAutoCheck.isChecked = prefs.getBoolean(PREF_DISABLE_AUTO_CHECK, false)
+        val menuCheckBetaUpdates = menu.findItem(R.id.menu_check_beta_updates)
+        try {
+            val prefs = mService!!.getRemotePreferences("prefs")
+            menuDisableAutoCheck.isChecked =
+                prefs.getBoolean("disable_auto_check_update", false)
             menuDisableAutoCheck.isVisible = true
-        } else {
+            menuCheckBetaUpdates.isChecked = prefs.getBoolean(CHECK_BETA_UPDATES, false)
+            menuCheckBetaUpdates.isVisible = true
+        } catch (_: Throwable) {
             menuDisableAutoCheck.isVisible = false
+            menuCheckBetaUpdates.isVisible = false
         }
         return true
     }
@@ -102,29 +108,24 @@ class SettingsActivity : Activity(), SettingApplication.ServiceStateListener {
             R.id.menu_hide_icon -> {
                 val newChecked = !item.isChecked
                 item.isChecked = newChecked
+                val aliasName = ComponentName(this, SettingsActivity::class.java.name + "Alias")
+                val status = if (newChecked) PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                else PackageManager.COMPONENT_ENABLED_STATE_ENABLED
                 packageManager.setComponentEnabledSetting(
-                    launcherAliasName(),
-                    if (newChecked) PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                    else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                    aliasName,
+                    status,
                     PackageManager.DONT_KILL_APP
                 )
-                // The launcher icon is the only way back into these settings for most users, so
-                // spell out the second half of the change instead of leaving them stranded.
-                if (newChecked) {
-                    Toast.makeText(this, R.string.hide_icon_summary, Toast.LENGTH_LONG).show()
-                }
                 true
             }
 
-            R.id.menu_disable_auto_check -> {
-                val prefs = modulePreferences()
-                if (prefs == null) {
-                    item.isVisible = false
-                    return true
-                }
+            R.id.menu_disable_auto_check, R.id.menu_check_beta_updates -> {
                 val newChecked = !item.isChecked
                 item.isChecked = newChecked
-                prefs.edit().putBoolean(PREF_DISABLE_AUTO_CHECK, newChecked).apply()
+                val key = if (item.itemId == R.id.menu_check_beta_updates) CHECK_BETA_UPDATES
+                else "disable_auto_check_update"
+                mService!!.getRemotePreferences("prefs")
+                    .edit().putBoolean(key, newChecked).apply()
                 true
             }
 
@@ -132,215 +133,108 @@ class SettingsActivity : Activity(), SettingApplication.ServiceStateListener {
         }
     }
 
-    private fun launcherAliasName() =
-        ComponentName(this, SettingsActivity::class.java.name + "Alias")
-
-    private fun isLauncherIconHidden() =
-        packageManager.getComponentEnabledSetting(launcherAliasName()) ==
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-
-    /** Remote preferences, or null when the Xposed service is not reachable. */
-    private fun modulePreferences(): SharedPreferences? =
-        runCatching { mService?.getRemotePreferences(MODULE_PREFS) }.getOrNull()
-
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         finishAndRemoveTask()
         exitProcess(0)
     }
 
-    companion object {
-        const val MODULE_PREFS = "prefs"
-        const val PREF_DISABLE_AUTO_CHECK = "disable_auto_check_update"
-    }
-
     @Suppress("OVERRIDE_DEPRECATION")
     class SettingsFragment : PreferenceFragment(), SettingApplication.ServiceStateListener {
         private var mService: XposedService? = null
-
-        private var statusPreference: Preference? = null
-        private var patchCategory: PreferenceCategory? = null
-
-        @Deprecated("Deprecated in Java")
-        override fun onCreate(savedInstanceState: Bundle?) {
-            super.onCreate(savedInstanceState)
-
-            val rootScreen = preferenceManager.createPreferenceScreen(context)
-            // Build in a fixed order regardless of when each section is attached, so the patch
-            // list — the reason the screen exists — always sits above the informational entries.
-            rootScreen.isOrderingAsAdded = false
-            preferenceScreen = rootScreen
-
-            Utils.setContext(context)
-
-            addPreferencesFromResource(R.xml.license_prefs)
-            val licensePreference = findPreference(LICENSE_PREF_KEY)?.also {
-                rootScreen.removePreference(it)
-            }
-
-            // A PreferenceGroup resolves its PreferenceManager from its parent, so every category
-            // has to be attached to the screen before any child is added to it.
-            val aboutCategory = PreferenceCategory(context).apply {
-                order = ORDER_ABOUT
-                setTitle(R.string.about_category)
-            }
-            rootScreen.addPreference(aboutCategory)
-
-            aboutCategory.addPreference(Preference(context).apply {
-                setSummary(R.string.slogan_summary)
-                isSelectable = false
-            })
-
-            aboutCategory.addPreference(Preference(context).apply {
-                setTitle(R.string.faq_title)
-                setSummary(R.string.faq_summary)
-                intent = Intent(Intent.ACTION_VIEW, Uri.parse(FAQ_URL))
-            })
-
-            aboutCategory.addPreference(Preference(context).apply {
-                setSummary(R.string.powered_by_morphe_summary)
-                intent = Intent(Intent.ACTION_VIEW, Uri.parse(MORPHE_URL))
-            })
-
-            licensePreference?.let { aboutCategory.addPreference(it) }
-
-            val versionCategory = PreferenceCategory(context).apply {
-                order = ORDER_VERSION
-                setTitle(R.string.version_category)
-            }
-            rootScreen.addPreference(versionCategory)
-
-            versionCategory.addPreference(Preference(context).apply {
-                setTitle(R.string.check_for_update_title)
-                val version = getString(
-                    R.string.version_summary_short,
-                    BuildConfig.VERSION_NAME,
-                    BuildConfig.COMMIT_HASH,
-                    BuildConfig.BUILD_TYPE
-                )
-                // COMMIT_DATE is 0 when the APK was built outside a git checkout.
-                summary = if (BuildConfig.COMMIT_DATE > 0) getString(
-                    R.string.version_summary_built,
-                    version,
-                    DateUtils.getRelativeTimeSpanString(BuildConfig.COMMIT_DATE * 1000)
-                ) else version
-                setOnPreferenceClickListener {
-                    activity?.let { host ->
-                        UpdateChecker().apply {
-                            setActivity(host)
-                            checkUpdate(silent = false)
-                        }
-                    }
-                    true
-                }
-            })
-
-            activity?.let { host ->
-                UpdateChecker().apply {
-                    setActivity(host)
-                    autoCheckUpdate()
-                }
-            }
-
-            updateDynamicUI(null)
+        private var autoUpdateChecked = false
+        private val updateChecker = UpdateChecker {
+            mService?.getRemotePreferences("prefs")?.getBoolean(CHECK_BETA_UPDATES, false) ?: false
         }
 
-        override fun onResume() {
-            super.onResume()
-            // Patch counts change while the user is inside an app's patch list; refresh on return.
-            updateDynamicUI(activatedService())
-        }
+        private var offPreference: Preference? = null
+        private var onCategory: PreferenceCategory? = null
 
-        /** The service, but only once it actually answers — a bound binder is not activation. */
-        private fun activatedService(): XposedService? {
-            val service = mService ?: return null
-            return runCatching {
-                service.getRemotePreferences(SettingsActivity.MODULE_PREFS)
-                service.apiVersion
-                service
-            }.getOrNull()
-        }
-
-        private fun AppPatchInfo.buildPreference(prefs: SharedPreferences?): Preference {
-            val selectable = selectablePatches
-            val installed = runCatching {
-                context.packageManager.getPackageInfo(packageName, 0)
-            }.isSuccess
-
+        fun AppPatchInfo.getPreference(): Preference {
             return Preference(context).apply {
                 title = appName
-                key = packageName
-                val available = resources.getQuantityString(
-                    R.plurals.patch_count_available, selectable.size, selectable.size
-                )
-                summary = when {
-                    !installed ->
-                        getString(R.string.app_not_installed_with_count, available)
-
-                    else -> {
-                        val enabled = selectable.count { patch ->
-                            prefs?.getBoolean(patch.name, patch.use) ?: patch.use
-                        }
-                        if (enabled == 0) getString(
-                            R.string.patch_count_summary_none, available
-                        ) else resources.getQuantityString(
-                            R.plurals.patch_count_enabled, selectable.size, enabled, selectable.size
-                        )
-                    }
-                }
-                runCatching {
-                    icon = context.packageManager.getApplicationIcon(packageName)
-                }
+                key = appName
                 intent = Intent(context, AppPatchSettingsActivity::class.java).apply {
                     putExtra(AppPatchSettingsActivity.ARGUMENT_APP_NAME, appName)
                 }
             }
         }
 
-        /**
-         * Rebuilds the status line and the patch list. Passing null renders the
-         * "module not activated" state.
-         */
-        private fun updateDynamicUI(service: XposedService?) {
-            val rootScreen = preferenceScreen ?: return
-            statusPreference?.let { rootScreen.removePreference(it) }
-            patchCategory?.let { rootScreen.removePreference(it) }
-            statusPreference = null
-            patchCategory = null
+        @Deprecated("Deprecated in Java")
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            updateChecker.setActivity(activity)
 
-            if (service == null) {
-                statusPreference = Preference(context).apply {
-                    order = ORDER_STATUS
-                    setTitle(R.string.module_not_activated_title)
+            val rootScreen = preferenceManager.createPreferenceScreen(context)
+            preferenceScreen = rootScreen
+
+            Preference(context).apply {
+                setSummary(R.string.slogan_summary)
+                isEnabled = false
+                rootScreen.addPreference(this)
+            }
+
+            Utils.setContext(context)
+
+            Preference(context).apply {
+                summary =
+                    "This app uses code from Morphe. To learn more, visit https://morphe.software"
+                intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://morphe.software"))
+                rootScreen.addPreference(this)
+            }
+
+            Preference(context).apply {
+                setTitle(R.string.faq_title)
+                intent = Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://github.com/NexAlloy/NexAlloy/wiki/Frequently-Asked-Questions")
+                )
+                rootScreen.addPreference(this)
+            }
+
+            addPreferencesFromResource(R.xml.license_prefs)
+
+            Preference(context).apply {
+                setTitle(R.string.check_for_update_title)
+                summary =
+                    """Current version: ${BuildConfig.VERSION_NAME} (${BuildConfig.COMMIT_HASH}) ${BuildConfig.BUILD_TYPE}
+                       |Build Date: ${DateUtils.getRelativeTimeSpanString(BuildConfig.COMMIT_DATE * 1000)}""".trimMargin()
+                setOnPreferenceClickListener {
+                    updateChecker.checkUpdate(silent = false)
+                    true
+                }
+                rootScreen.addPreference(this)
+            }
+            updateDynamicUI(false)
+        }
+
+        fun updateDynamicUI(on: Boolean) {
+            val rootScreen = preferenceScreen ?: return
+            if (onCategory != null) rootScreen.removePreference(onCategory)
+            if (offPreference != null) rootScreen.removePreference(offPreference)
+
+            if (!on) {
+                offPreference = Preference(context).apply {
                     setSummary(R.string.module_not_activated_summary)
-                    isSelectable = false
+                    isEnabled = false
                     rootScreen.addPreference(this)
                 }
-                return
-            }
+            } else {
+                onCategory = PreferenceCategory(context).apply {
+                    setTitle(R.string.patch_selection)
 
-            val category = PreferenceCategory(context).apply {
-                order = ORDER_PATCHES
-                setTitle(R.string.patch_selection)
-            }
-            patchCategory = category
-            rootScreen.addPreference(category)
+                    rootScreen.addPreference(this)
 
-            category.addPreference(Preference(context).apply {
-                setSummary(R.string.force_stop_to_apply_summary)
-                isSelectable = false
-            })
+                    this.addPreference(Preference(context).apply {
+                        setSummary(R.string.force_stop_to_apply_summary)
+                        isEnabled = false
+                    })
 
-            // Installed apps first: someone with three of the nine apps should not have to hunt
-            // for them among entries they cannot use.
-            appPatchConfigurations
-                .sortedByDescending { it.isInstalled(context.packageManager) }
-                .forEach { appPatchInfo ->
-                    val prefs = runCatching {
-                        service.getRemotePreferences(appPatchInfo.packageName)
-                    }.getOrNull()
-                    category.addPreference(appPatchInfo.buildPreference(prefs))
+                    for (appPatchInfo in appPatchConfigurations) {
+                        this.addPreference(appPatchInfo.getPreference())
+                    }
                 }
+            }
         }
 
         override fun onStart() {
@@ -357,21 +251,26 @@ class SettingsActivity : Activity(), SettingApplication.ServiceStateListener {
             mService = service
 
             activity?.runOnUiThread {
-                if (!isAdded) return@runOnUiThread
-                updateDynamicUI(activatedService())
+                if (service == null) {
+                    updateDynamicUI(false)
+                    return@runOnUiThread
+                }
+
+                val isModuleActivated: Boolean = try {
+                    service.getRemotePreferences("prefs")
+                    service.apiVersion
+                    true
+                } catch (_: Throwable) {
+                    false
+                }
+
+                updateDynamicUI(isModuleActivated)
+                // Wait for remote preferences before choosing the update channel.
+                if (isModuleActivated && !autoUpdateChecked) {
+                    autoUpdateChecked = true
+                    updateChecker.autoCheckUpdate()
+                }
             }
-        }
-
-        private companion object {
-            const val LICENSE_PREF_KEY = "open_source_licenses"
-            const val FAQ_URL =
-                "https://github.com/NexAlloy/NexAlloy/wiki/Frequently-Asked-Questions"
-            const val MORPHE_URL = "https://morphe.software"
-
-            const val ORDER_STATUS = 0
-            const val ORDER_PATCHES = 10
-            const val ORDER_ABOUT = 20
-            const val ORDER_VERSION = 30
         }
     }
 }
