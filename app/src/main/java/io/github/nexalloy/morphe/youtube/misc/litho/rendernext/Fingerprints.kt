@@ -1,10 +1,11 @@
 package io.github.nexalloy.morphe.youtube.misc.litho.rendernext
 
 import io.github.nexalloy.RequireAppVersion
-import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.SkipTest
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
+import io.github.nexalloy.morphe.InstructionLocation.MatchAfterImmediately
+import io.github.nexalloy.morphe.InstructionLocation.MatchAfterWithin
 import io.github.nexalloy.morphe.Match
 import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.fieldAccess
@@ -12,7 +13,9 @@ import io.github.nexalloy.morphe.findFieldDirect
 import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.literal
 import io.github.nexalloy.morphe.methodCall
+import io.github.nexalloy.morphe.opcode
 import io.github.nexalloy.morphe.parameters
+import io.github.nexalloy.morphe.shared.misc.debugging.BootstrapStoreReadFingerprint
 import io.github.nexalloy.morphe.string
 import org.luckypray.dexkit.DexKitBridge
 
@@ -104,15 +107,32 @@ internal object RenderNextTemplateCheckFingerprint : Fingerprint(
     )
 )
 
-const val ELEMENTS_SERVICES =
-    "com.google.android.libraries.multiplatform.elements.ElementsServices"
+@RequireAppVersion("21.35.000")
+internal object PageFragmentRouteFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "L",
+    parameters = listOf("L", "Z", "Z", "Z"),
+    filters = listOf(
+        string("top_level_browse_pane"),
+        literal(1073830434L),
+        methodCall(
+            opcode = Opcode.INVOKE_INTERFACE,
+            parameters = listOf("I"),
+            returnType = "Z",
+            location = MatchAfterWithin(5)
+        ),
+        opcode(Opcode.MOVE_RESULT, location = MatchAfterImmediately())
+    )
+)
 
-@get:RequireAppVersion(minVersion = "21.43.000")
-val SectionContextConstructorFingerprint = findMethodDirect {
-    findMethod {
-        matcher {
-            name = "<init>"
-            paramCount(25, 60)
-        }
-    }.single { it.paramTypeNames.contains(ELEMENTS_SERVICES) }
+@get:RequireAppVersion("21.35.000")
+val pageFragmentRouteFlagMethod = io.github.nexalloy.morphe.findMethodDirect {
+    val reference = PageFragmentRouteFingerprint.instructionMatches[2].instruction.methodRef!!
+    // Hook the concrete bootstrap store, rather than its interface declaration.
+    Fingerprint(
+        definingClass = BootstrapStoreReadFingerprint().declaredClass!!.descriptor,
+        name = reference.name,
+        returnType = "Z",
+        parameters = listOf("I")
+    )()
 }

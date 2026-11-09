@@ -334,7 +334,7 @@ abstract class CopyResourcesTask @Inject constructor() : DefaultTask() {
             "copyvideolinkbutton/drawable" to null,
             "downloads/drawable" to null,
             "speedbutton/drawable" to null,
-            "navigationbuttons/drawable" to null,
+            "navigationbar/drawable" to null,
             "speed/drawable" to null,
         )
 

@@ -3,8 +3,8 @@ package io.github.nexalloy.morphe.youtube.layout.hide.general
 import io.github.nexalloy.SkipTest
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
-import io.github.nexalloy.morphe.InstructionLocation
 import io.github.nexalloy.morphe.InstructionLocation.MatchAfterImmediately
+import io.github.nexalloy.morphe.InstructionLocation.MatchBeforeAnywhere
 import io.github.nexalloy.morphe.InstructionLocation.MatchAfterWithin
 import io.github.nexalloy.morphe.Opcode
 import io.github.nexalloy.morphe.ResourceType
@@ -121,7 +121,11 @@ internal object ContextualMenuItemBuilderFingerprint : Fingerprint(
             returnType = "I",
             location = MatchAfterWithin(7),
         ),
-        resourceLiteral(ResourceType.DIMEN, "poster_art_width_default"),
+        resourceLiteral(
+            ResourceType.DIMEN,
+            "poster_art_width_default",
+            location = MatchBeforeAnywhere()
+        ),
     )
 )
 
@@ -142,10 +146,7 @@ internal object ContextualMenuItemBuilderOnClickFingerprint : Fingerprint(
             opcode = Opcode.IGET_OBJECT,
             definingClass = "this",
             type = "Ljava/lang/Object;"
-        ),
-        opcode(Opcode.CHECK_CAST, location = MatchAfterImmediately()),
-        opcode(Opcode.INVOKE_STATIC, location = MatchAfterImmediately()),
-        opcode(Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately())
+        )
     )
 )
 
@@ -215,3 +216,16 @@ internal object ShowControlsOnRelatedPanelDragFingerprint : Fingerprint(
         opcode(Opcode.RETURN_VOID, MatchAfterImmediately())
     )
 )
+
+internal object EntityMutationPayloadFingerprint : Fingerprint(
+    returnType = "[B",
+    filters = listOf(string("There can be only one field in EntityMutationPayload"))
+)
+
+val entityMutationBytesMethod = findMethodDirect {
+    val method = EntityMutationPayloadFingerprint()
+    method.instructions.mapNotNull { it.methodRef }.distinct().single {
+        it.declaredClass!!.descriptor == method.paramTypes.single().descriptor &&
+            it.returnType!!.descriptor == "[B" && it.paramTypes.isEmpty()
+    }
+}

@@ -1,14 +1,13 @@
 package io.github.nexalloy.morphe.youtube.misc.litho.rendernext
 
-import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XC_MethodReplacement
 import io.github.nexalloy.morphe.youtube.insertLiteralOverride
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_29_or_greater
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_47_or_greater
-import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_43_or_greater
+import io.github.nexalloy.morphe.youtube.misc.playservice.is_21_35_or_greater
 import io.github.nexalloy.patch
-import java.lang.reflect.Modifier
+import io.github.nexalloy.scopedHook
 
 val disableRenderNextPatch = patch(
     description = "Disables RenderNext, so the app is always rendered with Litho.",
@@ -40,26 +39,13 @@ val disableRenderNextPatch = patch(
         RenderNextTemplateCheckFingerprint.hookMethod(XC_MethodReplacement.returnConstant(false))
     }
 
-    if (is_21_43_or_greater) {
-        ::RenderNextConfigFieldReadFingerprint.dexMethodList
-            .filter { it.returnTypeName == "boolean" }
-            .forEach { it.hookMethod(XC_MethodReplacement.returnConstant(false)) }
-
-        val elementsServicesIndex = ::SectionContextConstructorFingerprint.constructor
-            .parameterTypes.indexOfFirst { it.name == ELEMENTS_SERVICES }
-        ::SectionContextConstructorFingerprint.hookMethod(object : XC_MethodHook() {
-            override fun beforeHookedMethod(param: MethodHookParam) {
-                param.args[elementsServicesIndex] = null
+    if (is_21_35_or_greater) {
+        // Do not open Home with the page fragment, which renders the whole page with RenderNext.
+        PageFragmentRouteFingerprint.hookMethod(scopedHook(::pageFragmentRouteFlagMethod.method) {
+            after {
+                if (it.args[0] == 1073830434) it.result = false
             }
         })
-
-        val configClass = configField.declaringClass
-        configClass.declaredFields
-            .firstOrNull { Modifier.isStatic(it.modifiers) && it.type == configClass }
-            ?.let { defaultInstanceField ->
-                defaultInstanceField.isAccessible = true
-                defaultInstanceField.get(null)?.let { configField.set(it, false) }
-            }
     }
 
     if (is_20_47_or_greater) {
