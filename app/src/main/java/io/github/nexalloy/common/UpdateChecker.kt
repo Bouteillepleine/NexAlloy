@@ -74,7 +74,7 @@ data class VersionInfo(val versionCode: Int, val versionName: String) {
     }
 }
 
-const val OWNER = "NexAlloy"
+const val OWNER = "Bouteillepleine"
 const val REPO = "NexAlloy"
 const val currentVersionCode = BuildConfig.VERSION_CODE
 const val CHECK_BETA_UPDATES = "check_beta_updates"
