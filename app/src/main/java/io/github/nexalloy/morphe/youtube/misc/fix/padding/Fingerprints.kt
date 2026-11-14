@@ -13,7 +13,6 @@ import io.github.nexalloy.morphe.opcode
 
 internal object PageBottomMarginFingerprint : Fingerprint(
     returnType = "V",
-    parameters = listOf("Landroid/graphics/Rect;"),
     filters = listOf(
         methodCall(smali = "Landroid/view/View;->findFocus()Landroid/view/View;"),
         methodCall(
