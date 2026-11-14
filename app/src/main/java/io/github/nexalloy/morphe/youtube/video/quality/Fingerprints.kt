@@ -294,7 +294,6 @@ internal object QualityFormatsFeatureFlagFingerprint : Fingerprint(
 @RequireAppVersion("21.17.000")
 @StrictQuery
 internal object PlaybackControllerSetVideoFormatsFingerprint : Fingerprint(
-    definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/PlaybackControllerWrapper;",
     accessFlags = listOf(AccessFlags.FINAL),
     returnType = "Z",
     parameters = listOf("Z"),
@@ -318,7 +317,6 @@ internal object PlaybackControllerSetVideoFormatsFingerprint : Fingerprint(
  */
 @RequireAppVersion("21.17.000")
 internal object AsyncMediaFetchControllerSetVideoFormatsFingerprint : Fingerprint(
-    definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/AsyncMediaFetchControllerWrapper;",
     returnType = "V",
     parameters = listOf("L", "Z"),
     filters = listOf(
@@ -352,15 +350,13 @@ internal const val BUFFER_MANAGER_CLASS =
  */
 @RequireAppVersion("21.17.000")
 internal object PlaybackControllerClearBufferFingerprint : Fingerprint(
-    definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/PlaybackControllerWrapper;",
     returnType = "V",
     filters = listOf(
         // Stops the media requests.
         methodCall(definingClass = "this", returnType = "V", parameters = listOf()),
         fieldAccess(
             opcode = Opcode.IGET_OBJECT,
-            definingClass = "this",
-            type = BUFFER_MANAGER_CLASS
+            definingClass = "this"
         ),
         string("setStartTimeUs with disposed BufferManager")
     )
@@ -379,7 +375,6 @@ internal object MediaSegmentHolderDiscardBufferAfterSegmentFingerprint : Fingerp
     filters = listOf(
         string("discardBufferAfterCurrentSegment with disposed BufferManager"),
         methodCall(
-            definingClass = MEDIA_SEGMENT_HOLDER_CLASS,
             returnType = "V",
             parameters = listOf("J")
         )
@@ -446,13 +441,11 @@ internal object SampleHolderDiscardBufferBeforeSegmentFingerprint : Fingerprint(
  */
 @RequireAppVersion("21.17.000")
 internal object MediaSegmentHolderSetFirstSegmentEndTimeFingerprint : Fingerprint(
-    definingClass = MEDIA_SEGMENT_HOLDER_CLASS,
     returnType = "V",
     parameters = listOf(),
     filters = listOf(
         methodCall(smali = "Ljava/util/List;->isEmpty()Z"),
         methodCall(
-            definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/BufferedMediaSegment;",
             returnType = "J",
             parameters = listOf()
         ),
@@ -466,15 +459,11 @@ internal object MediaSegmentHolderSetFirstSegmentEndTimeFingerprint : Fingerprin
  */
 @RequireAppVersion("21.17.000")
 internal object MediaPushMediaSourceDiscardBufferFingerprint : Fingerprint(
-    definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/MediaPushMediaSource;",
     returnType = "V",
     parameters = listOf("J"),
     filters = listOf(
-        fieldAccess(
-            opcode = Opcode.SGET_WIDE,
-            definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/live/LiveTimeline;"
-        ),
-        fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = "this", type = BUFFER_MANAGER_CLASS),
+        fieldAccess(opcode = Opcode.SGET_WIDE),
+        fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = "this"),
         methodCall(smali = "Ljava/lang/Math;->max(JJ)J")
     )
 )
