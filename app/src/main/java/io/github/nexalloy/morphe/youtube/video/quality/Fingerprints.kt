@@ -300,6 +300,7 @@ internal object PlaybackControllerSetVideoFormatsFingerprint : Fingerprint(
     filters = listOf(
         fieldAccess(
             opcode = Opcode.IGET_OBJECT,
+            definingClass = "this",
             type = "Lcom/google/android/libraries/youtube/media/interfaces/PlaybackController;"
         ),
         opcode(Opcode.IF_NEZ, location = MatchAfterImmediately()),
@@ -344,37 +345,47 @@ internal val videoQualityItemSetResolutionMethods = findMethodListDirect {
 internal const val BUFFER_MANAGER_CLASS =
     "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/BufferManagerImpl;"
 
-/**
- * The method of the player that clears the buffered media of a track, and buffers it again
- * from the time the video started or was last seeked to.
- */
-@RequireAppVersion("21.17.000")
-internal object PlaybackControllerClearBufferFingerprint : Fingerprint(
-    returnType = "V",
-    filters = listOf(
-        // Stops the media requests.
-        methodCall(definingClass = "this", returnType = "V", parameters = listOf()),
-        fieldAccess(
-            opcode = Opcode.IGET_OBJECT,
-            definingClass = "this"
-        ),
-        string("setStartTimeUs with disposed BufferManager")
-    )
-)
-
-internal const val MEDIA_SEGMENT_HOLDER_CLASS =
+internal const val MEDIA_SEGMENT_HOLDER_LEGACY_CLASS =
     "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/MediaSegmentHolder;"
 
 /**
+ * 21.46+ obfuscates the classes of the media player.
+ *
+ * The player gets the buffered media of a track from the buffer manager,
+ * and clears it after the segment that contains a time.
+ */
+@RequireAppVersion("21.46.000")
+internal object MediaSegmentHolderDiscardBufferAfterSegmentFingerprint : Fingerprint(
+    filters = listOf(
+        string("discardBufferAfterCurrentSegment with disposed BufferManager"),
+        // Returns the buffered media of a track.
+        methodCall(
+            returnType = "L",
+            parameters = listOf("L"),
+            location = MatchAfterWithin(10)
+        ),
+        opcode(Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately()),
+        methodCall(
+            returnType = "V",
+            parameters = listOf("J"),
+            location = MatchAfterImmediately()
+        )
+    )
+)
+
+/**
+ * 21.17 - 21.45
+ *
  * The call to the method of the buffered media of a track that clears it after the segment
  * that contains a time. Before 21.44 it is called from a method of the buffer manager,
  * and 21.44+ inlines that method into the player.
  */
-@RequireAppVersion("21.17.000")
-internal object MediaSegmentHolderDiscardBufferAfterSegmentFingerprint : Fingerprint(
+@RequireAppVersion("21.17.000", "21.46.000")
+internal object MediaSegmentHolderDiscardBufferAfterSegmentLegacyFingerprint : Fingerprint(
     filters = listOf(
         string("discardBufferAfterCurrentSegment with disposed BufferManager"),
         methodCall(
+            definingClass = MEDIA_SEGMENT_HOLDER_LEGACY_CLASS,
             returnType = "V",
             parameters = listOf("J")
         )
@@ -383,22 +394,65 @@ internal object MediaSegmentHolderDiscardBufferAfterSegmentFingerprint : Fingerp
 
 @get:RequireAppVersion("21.17.000")
 internal val mediaSegmentHolderDiscardBufferAfterSegmentMethod = findMethodDirect {
-    MediaSegmentHolderDiscardBufferAfterSegmentFingerprint.instructionMatches.last().instruction.methodRef!!
+    runCatching {
+        MediaSegmentHolderDiscardBufferAfterSegmentFingerprint.instructionMatches.last().instruction.methodRef!!
+    }.getOrElse {
+        MediaSegmentHolderDiscardBufferAfterSegmentLegacyFingerprint.instructionMatches.last().instruction.methodRef!!
+    }
 }
 
 internal const val SAMPLE_HOLDER_CLASS =
     "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/SampleHolder;"
 
 /**
+ * 21.17 - 21.45
+ *
  * The method of the buffer manager that returns the buffered media of a track.
  */
-@RequireAppVersion("21.17.000")
-internal object BufferManagerGetMediaSegmentHolderFingerprint : Fingerprint(
+@RequireAppVersion("21.17.000", "21.46.000")
+internal object BufferManagerGetMediaSegmentHolderLegacyFingerprint : Fingerprint(
     definingClass = BUFFER_MANAGER_CLASS,
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-    returnType = MEDIA_SEGMENT_HOLDER_CLASS,
+    returnType = MEDIA_SEGMENT_HOLDER_LEGACY_CLASS,
     parameters = listOf("L")
 )
+
+@get:RequireAppVersion("21.17.000")
+internal val bufferManagerGetMediaSegmentHolderMethod = findMethodDirect {
+    runCatching {
+        MediaSegmentHolderDiscardBufferAfterSegmentFingerprint.instructionMatches[1].instruction.methodRef!!
+    }.getOrElse {
+        BufferManagerGetMediaSegmentHolderLegacyFingerprint()
+    }
+}
+
+context(dexkit: org.luckypray.dexkit.DexKitBridge)
+private fun bufferManagerClass() =
+    bufferManagerGetMediaSegmentHolderMethod(dexkit).declaredClass!!.descriptor
+
+/**
+ * The method of the player that clears the buffered media of a track, and buffers it again
+ * from the time the video started or was last seeked to.
+ */
+context(dexkit: org.luckypray.dexkit.DexKitBridge)
+private fun playbackControllerClearBufferFingerprint() = Fingerprint(
+    returnType = "V",
+    filters = listOf(
+        // Stops the media requests.
+        methodCall(definingClass = "this", returnType = "V", parameters = listOf()),
+        fieldAccess(
+            opcode = Opcode.IGET_OBJECT,
+            definingClass = "this",
+            type = bufferManagerClass()
+        ),
+        string("setStartTimeUs with disposed BufferManager")
+    )
+)
+
+@get:RequireAppVersion("21.17.000")
+internal val playbackControllerClearBufferMethod = findMethodDirect {
+    playbackControllerClearBufferFingerprint().match().method
+}
 
 /**
  * 21.17 - 21.42
@@ -423,28 +477,39 @@ internal object SampleHolderDiscardBufferBeforeSegmentLegacyFingerprint : Finger
  *
  * Same as [SampleHolderDiscardBufferBeforeSegmentLegacyFingerprint],
  * with the parameters: time, playback time and size of the media kept before the playback time.
+ *
+ * 21.46+ declares the method in two classes, only one of which the media source clears
+ * the buffered media with.
  */
-@RequireAppVersion("21.43.000")
-internal object SampleHolderDiscardBufferBeforeSegmentFingerprint : Fingerprint(
-    definingClass = SAMPLE_HOLDER_CLASS,
-    returnType = "V",
-    parameters = listOf("J", "J", "J"),
-    filters = listOf(
-        methodCall(definingClass = "this", returnType = "Z", parameters = listOf("J", "J", "J")),
-        methodCall(definingClass = "this", returnType = "V", parameters = listOf("J", "J", "J"))
-    )
-)
+@get:RequireAppVersion("21.43.000")
+internal val sampleHolderDiscardBufferBeforeSegmentMethod = findMethodDirect {
+    val candidates = Fingerprint(
+        returnType = "V",
+        parameters = listOf("J", "J", "J"),
+        filters = listOf(
+            methodCall(definingClass = "this", returnType = "Z", parameters = listOf("J", "J", "J")),
+            methodCall(definingClass = "this", returnType = "V", parameters = listOf("J", "J", "J"))
+        )
+    ).matchAll().map { it.method }
+
+    candidates.singleOrNull() ?: run {
+        val calls = mediaPushMediaSourceDiscardBufferMethod().instructions
+            .mapNotNull { it.methodRef?.descriptor }
+        candidates.single { it.descriptor in calls }
+    }
+}
 
 /**
  * The method of the buffered media of a track that saves the end time of its first segment.
  * The media before a time is cleared only if the time is after it.
  */
-@RequireAppVersion("21.17.000")
-internal object MediaSegmentHolderSetFirstSegmentEndTimeFingerprint : Fingerprint(
+internal fun mediaSegmentHolderSetFirstSegmentEndTimeFingerprint(mediaSegmentHolderClass: String) = Fingerprint(
+    definingClass = mediaSegmentHolderClass,
     returnType = "V",
     parameters = listOf(),
     filters = listOf(
         methodCall(smali = "Ljava/util/List;->isEmpty()Z"),
+        // End time of the buffered media segment.
         methodCall(
             returnType = "J",
             parameters = listOf()
@@ -457,16 +522,26 @@ internal object MediaSegmentHolderSetFirstSegmentEndTimeFingerprint : Fingerprin
  * The method of the media source that clears the media buffered before the playback time,
  * called by the player while the video is loaded.
  */
-@RequireAppVersion("21.17.000")
-internal object MediaPushMediaSourceDiscardBufferFingerprint : Fingerprint(
+context(dexkit: org.luckypray.dexkit.DexKitBridge)
+private fun mediaPushMediaSourceDiscardBufferFingerprint() = Fingerprint(
     returnType = "V",
     parameters = listOf("J"),
     filters = listOf(
-        fieldAccess(opcode = Opcode.SGET_WIDE),
-        fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = "this"),
+        // Time of a live stream that is not set.
+        fieldAccess(opcode = Opcode.SGET_WIDE, type = "J"),
+        fieldAccess(
+            opcode = Opcode.IGET_OBJECT,
+            definingClass = "this",
+            type = bufferManagerClass()
+        ),
         methodCall(smali = "Ljava/lang/Math;->max(JJ)J")
     )
 )
+
+@get:RequireAppVersion("21.17.000")
+internal val mediaPushMediaSourceDiscardBufferMethod = findMethodDirect {
+    mediaPushMediaSourceDiscardBufferFingerprint().match().method
+}
 
 
 internal val playbackStartInitialResolutionMethod = findMethodDirect {
@@ -554,27 +629,29 @@ internal val videoTrackTypeField = findFieldDirect {
 
 @get:RequireAppVersion("21.17.000")
 internal val stopMediaRequestsMethod = findMethodDirect {
-    PlaybackControllerClearBufferFingerprint.instructionMatches[0].instruction.methodRef!!
+    playbackControllerClearBufferFingerprint().instructionMatches[0].instruction.methodRef!!
 }
 
 @get:RequireAppVersion("21.17.000")
 internal val playbackBufferManagerField = findFieldDirect {
-    PlaybackControllerClearBufferFingerprint.instructionMatches[1].instruction.fieldRef!!
+    playbackControllerClearBufferFingerprint().instructionMatches[1].instruction.fieldRef!!
 }
 
 @get:RequireAppVersion("21.17.000")
 internal val firstSegmentEndTimeField = findFieldDirect {
-    MediaSegmentHolderSetFirstSegmentEndTimeFingerprint.instructionMatches.last().instruction.fieldRef!!
+    mediaSegmentHolderSetFirstSegmentEndTimeFingerprint(
+        bufferManagerGetMediaSegmentHolderMethod().returnType!!.descriptor
+    ).instructionMatches.last().instruction.fieldRef!!
 }
 
 @get:RequireAppVersion("21.17.000")
 internal val mediaSourceBufferManagerField = findFieldDirect {
-    MediaPushMediaSourceDiscardBufferFingerprint.instructionMatches[1].instruction.fieldRef!!
+    mediaPushMediaSourceDiscardBufferFingerprint().instructionMatches[1].instruction.fieldRef!!
 }
 
 @get:RequireAppVersion("21.17.000")
 internal val mediaSourcePrepareDiscardMethod = findMethodDirect {
-    val match = MediaPushMediaSourceDiscardBufferFingerprint.match()
+    val match = mediaPushMediaSourceDiscardBufferFingerprint().match()
     match.method.instructions.take(match.instructionMatches[1].index).last {
         it.methodRef?.declaredClass == match.method.declaredClass &&
             it.methodRef?.paramTypes?.map { p -> p.descriptor } == listOf("J") &&

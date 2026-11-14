@@ -11,8 +11,42 @@ import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.methodCall
 import io.github.nexalloy.morphe.opcode
 
+/**
+ * 21.46+
+ */
+@RequireAppVersion("21.46.000")
 internal object PageBottomMarginFingerprint : Fingerprint(
     returnType = "V",
+    parameters = listOf("Landroid/graphics/Rect;", "Z"),
+    filters = listOf(
+        methodCall(smali = "Landroid/view/View;->findFocus()Landroid/view/View;"),
+        methodCall(
+            smali = "Landroid/view/View;->onCheckIsTextEditor()Z",
+            location = MatchAfterWithin(5)
+        ),
+        fieldAccess(
+            opcode = Opcode.IGET,
+            definingClass = "Landroid/graphics/Rect;",
+            name = "bottom"
+        ),
+        // Keyboard height.
+        methodCall(
+            opcode = Opcode.INVOKE_STATIC,
+            parameters = listOf("Landroid/view/View;"),
+            returnType = "I",
+            location = MatchAfterWithin(10)
+        ),
+        opcode(Opcode.MOVE_RESULT, location = MatchAfterImmediately())
+    )
+)
+
+/**
+ * 21.45 and older.
+ */
+@RequireAppVersion(maxVersion = "21.46.000")
+internal object PageBottomMarginLegacyFingerprint : Fingerprint(
+    returnType = "V",
+    parameters = listOf("Landroid/graphics/Rect;"),
     filters = listOf(
         methodCall(smali = "Landroid/view/View;->findFocus()Landroid/view/View;"),
         methodCall(
@@ -78,8 +112,9 @@ internal val browseListSetPaddingMethod = findMethodDirect {
 }
 
 
+@get:RequireAppVersion(maxVersion = "21.46.000")
 internal val pageBottomMarginConstructor = findMethodDirect {
-    val match = PageBottomMarginFingerprint.match()
+    val match = PageBottomMarginLegacyFingerprint.match()
     match.method.instructions.drop(match.instructionMatches.last().index + 1).first {
         it.methodRef?.name == "<init>" &&
                 it.methodRef?.paramTypes?.map { it.descriptor } == listOf("I", "I", "[B")
@@ -87,19 +122,17 @@ internal val pageBottomMarginConstructor = findMethodDirect {
 }
 
 internal val pageKeyboardInsetsMethod = findMethodDirect {
-    val match = PageBottomMarginFingerprint.match()
-    val instructions = match.method.instructions
-    val keyboardBranch = match.instructionMatches[1].index + 1
-
-    fun lastInsetCall(from: Int, to: Int) = instructions.subList(from, to).lastOrNull {
-        it.opcode in listOf(Opcode.INVOKE_STATIC.opCode, Opcode.INVOKE_STATIC_RANGE.opCode) &&
-                it.methodRef?.paramTypes?.map { it.descriptor } == listOf("Landroid/view/View;")
+    runCatching {
+        PageBottomMarginFingerprint.instructionMatches[3].instruction.methodRef!!
+    }.getOrElse {
+        val match = PageBottomMarginLegacyFingerprint.match()
+        val instructions = match.method.instructions
+        instructions.subList(
+            match.instructionMatches[1].index + 1,
+            match.instructionMatches.last().index
+        ).last {
+            it.opcode in listOf(Opcode.INVOKE_STATIC.opCode, Opcode.INVOKE_STATIC_RANGE.opCode) &&
+                    it.methodRef?.paramTypes?.map { it.descriptor } == listOf("Landroid/view/View;")
+        }.methodRef!!
     }
-
-    // The helper sits just before the Rect.bottom fallback up to 21.45 and just after it from
-    // 21.46, so fall back to the rest of the method when the original window comes up empty.
-    val insetCall = lastInsetCall(keyboardBranch, match.instructionMatches.last().index)
-        ?: lastInsetCall(keyboardBranch, instructions.size)
-
-    requireNotNull(insetCall) { "No keyboard inset helper on the keyboard branch" }.methodRef!!
 }

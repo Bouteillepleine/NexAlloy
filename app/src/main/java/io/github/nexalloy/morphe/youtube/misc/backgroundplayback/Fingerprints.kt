@@ -12,6 +12,7 @@ import io.github.nexalloy.morphe.findMethodDirect
 import io.github.nexalloy.morphe.findMethodListDirect
 import io.github.nexalloy.morphe.literal
 import io.github.nexalloy.morphe.methodCall
+import io.github.nexalloy.morphe.opcode
 import io.github.nexalloy.morphe.parameters
 import io.github.nexalloy.morphe.resourceLiteral
 import io.github.nexalloy.morphe.resourceMappings
@@ -102,8 +103,27 @@ val backgroundPlaybackSettingsLegacySubFingerprint = findMethodDirect {
     BackgroundPlaybackSettingsLegacyFingerprint.instructionMatches[1].instruction.methodRef!!
 }
 
-@RequireAppVersion(maxVersion = "21.46.000")
+/**
+ * 21.46+
+ */
+@RequireAppVersion("21.46.000")
 object KidsBackgroundPlaybackPolicyControllerFingerprint : Fingerprint(
+    returnType = "V",
+    parameters = listOf("I", "Z", "Z", "Z", "L"),
+    filters = listOf(
+        opcode(Opcode.IGET),
+        literal(5, location = MatchAfterWithin(8)),
+        literal(2, location = MatchAfterWithin(5)),
+        literal(3, location = MatchAfterWithin(8)),
+        literal(0x13, location = MatchAfterWithin(12))
+    )
+)
+
+/**
+ * 21.45 and older.
+ */
+@RequireAppVersion(maxVersion = "21.46.000")
+object KidsBackgroundPlaybackPolicyControllerLegacyFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "V",
     parameters = listOf("I", "L", "L"),
