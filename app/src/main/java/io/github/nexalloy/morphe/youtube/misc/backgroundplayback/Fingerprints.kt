@@ -102,6 +102,7 @@ val backgroundPlaybackSettingsLegacySubFingerprint = findMethodDirect {
     BackgroundPlaybackSettingsLegacyFingerprint.instructionMatches[1].instruction.methodRef!!
 }
 
+@RequireAppVersion(maxVersion = "21.46.000")
 object KidsBackgroundPlaybackPolicyControllerFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "V",
