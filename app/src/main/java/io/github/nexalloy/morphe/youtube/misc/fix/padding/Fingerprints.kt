@@ -89,13 +89,17 @@ internal val pageBottomMarginConstructor = findMethodDirect {
 internal val pageKeyboardInsetsMethod = findMethodDirect {
     val match = PageBottomMarginFingerprint.match()
     val instructions = match.method.instructions
-    // Newer targets read the keyboard inset through a helper without calling getRootView.
-    // Both forms occur only on the keyboard branch, immediately before the Rect.bottom fallback.
-    instructions.subList(
-        match.instructionMatches[1].index + 1,
-        match.instructionMatches.last().index
-    ).last {
-            it.opcode in listOf(Opcode.INVOKE_STATIC.opCode, Opcode.INVOKE_STATIC_RANGE.opCode) &&
-                    it.methodRef?.paramTypes?.map { it.descriptor } == listOf("Landroid/view/View;")
-        }.methodRef!!
+    val keyboardBranch = match.instructionMatches[1].index + 1
+
+    fun lastInsetCall(from: Int, to: Int) = instructions.subList(from, to).lastOrNull {
+        it.opcode in listOf(Opcode.INVOKE_STATIC.opCode, Opcode.INVOKE_STATIC_RANGE.opCode) &&
+                it.methodRef?.paramTypes?.map { it.descriptor } == listOf("Landroid/view/View;")
+    }
+
+    // The helper sits just before the Rect.bottom fallback up to 21.45 and just after it from
+    // 21.46, so fall back to the rest of the method when the original window comes up empty.
+    val insetCall = lastInsetCall(keyboardBranch, match.instructionMatches.last().index)
+        ?: lastInsetCall(keyboardBranch, instructions.size)
+
+    requireNotNull(insetCall) { "No keyboard inset helper on the keyboard branch" }.methodRef!!
 }
