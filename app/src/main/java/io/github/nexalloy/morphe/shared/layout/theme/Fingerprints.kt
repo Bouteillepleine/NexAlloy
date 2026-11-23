@@ -59,7 +59,7 @@ internal object LithoOnBoundsChangeFingerprint : Fingerprint(
 
 // YT 21.29, Music 9.29 and older.
 @TargetApp("youtube")
-@RequireAppVersion(maxVersion = "21.30.000")
+@RequireAppVersion(maxVersion = "21.29.999")
 @StrictQuery
 internal object LithoOnBoundsChangeLegacyFingerprint : Fingerprint(
     name = "onBoundsChange",
@@ -93,7 +93,7 @@ val lithoPaintField = findFieldDirect {
 }
 
 @get:TargetApp("youtube")
-@get:RequireAppVersion(maxVersion = "21.30.000")
+@get:RequireAppVersion(maxVersion = "21.29.999")
 val lithoPaintLegacyField = findFieldDirect {
     LithoOnBoundsChangeLegacyFingerprint.instructionMatches[1].instruction.fieldRef!!
 }

@@ -115,7 +115,7 @@ var is_21_42_or_greater : Boolean by Delegates.notNull()
     private set
 var is_21_43_or_greater : Boolean by Delegates.notNull()
     private set
-var is_21_46_or_greater : Boolean by Delegates.notNull()
+var is_21_46_or_greater: Boolean by Delegates.notNull()
     private set
 
 val VersionCheck = patch {

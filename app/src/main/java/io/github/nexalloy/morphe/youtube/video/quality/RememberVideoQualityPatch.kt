@@ -70,7 +70,7 @@ val RememberVideoQuality = patch {
         val initialResolutionField = ::InitialResolutionField.field
         after {
             val oldValue = initialResolutionField.get(it.thisObject)
-            val newValue = RememberVideoQualityPatch.getInitialVideoQuality(oldValue as Optional<*>?)
+            val newValue = RememberVideoQualityPatch.getInitialVideoQuality(oldValue as Optional<Int>)
             initialResolutionField.set(it.thisObject, newValue)
         }
     }

@@ -1,6 +1,13 @@
 package io.github.nexalloy.morphe.youtube.video.quality
 
 import io.github.nexalloy.RequireAppVersion
+import io.github.nexalloy.AllowAbstract
+import io.github.nexalloy.morphe.shared.FormatStreamModelToStringFingerprint
+import io.github.nexalloy.morphe.youtube.shared.PlaybackStartDescriptorToStringFingerprint
+import io.github.nexalloy.morphe.youtube.shared.VideoQualityClass
+import io.github.nexalloy.morphe.youtube.video.information.VideoQualitySetterFingerprint
+import io.github.nexalloy.morphe.youtube.video.information.setQualityFieldReference
+import org.luckypray.dexkit.DexKitBridge
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.InstructionLocation.MatchAfterImmediately
@@ -327,7 +334,7 @@ internal object AsyncMediaFetchControllerSetVideoFormatsFingerprint : Fingerprin
 
 internal val setVideoQualityResolutionMethod = findMethodDirect {
     Fingerprint(
-        definingClass = io.github.nexalloy.morphe.youtube.video.information.setQualityFieldReference().typeSign,
+        definingClass = setQualityFieldReference().typeSign,
         returnType = "V",
         parameters = listOf("I")
     ).match().method
@@ -426,7 +433,7 @@ internal val bufferManagerGetMediaSegmentHolderMethod = findMethodDirect {
     }
 }
 
-context(dexkit: org.luckypray.dexkit.DexKitBridge)
+context(dexkit: DexKitBridge)
 private fun bufferManagerClass() =
     bufferManagerGetMediaSegmentHolderMethod(dexkit).declaredClass!!.descriptor
 
@@ -434,7 +441,7 @@ private fun bufferManagerClass() =
  * The method of the player that clears the buffered media of a track, and buffers it again
  * from the time the video started or was last seeked to.
  */
-context(dexkit: org.luckypray.dexkit.DexKitBridge)
+context(dexkit: DexKitBridge)
 private fun playbackControllerClearBufferFingerprint() = Fingerprint(
     returnType = "V",
     filters = listOf(
@@ -522,7 +529,7 @@ internal fun mediaSegmentHolderSetFirstSegmentEndTimeFingerprint(mediaSegmentHol
  * The method of the media source that clears the media buffered before the playback time,
  * called by the player while the video is loaded.
  */
-context(dexkit: org.luckypray.dexkit.DexKitBridge)
+context(dexkit: DexKitBridge)
 private fun mediaPushMediaSourceDiscardBufferFingerprint() = Fingerprint(
     returnType = "V",
     parameters = listOf("J"),
@@ -556,13 +563,13 @@ internal val playbackStartInitialResolutionMethod = findMethodDirect {
     ).match().method
 }
 
-context(dexkit: org.luckypray.dexkit.DexKitBridge)
+context(dexkit: DexKitBridge)
 private fun playerPlaybackStartDescriptorFingerprint() = Fingerprint(
     definingClass = playbackStartInitialResolutionMethod(dexkit).declaredClass!!.descriptor,
     filters = listOf(
         fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = "this"),
         methodCall(
-            returnType = io.github.nexalloy.morphe.youtube.shared.PlaybackStartDescriptorToStringFingerprint().declaredClass!!.descriptor,
+            returnType = PlaybackStartDescriptorToStringFingerprint().declaredClass!!.descriptor,
             parameters = listOf(),
             location = MatchAfterImmediately()
         )
@@ -573,21 +580,21 @@ internal val playbackStartPlayerField = findFieldDirect {
     playerPlaybackStartDescriptorFingerprint().instructionMatches[0].instruction.fieldRef!!
 }
 
-@get:io.github.nexalloy.AllowAbstract
+@get:AllowAbstract
 internal val playerPlaybackStartDescriptorMethod = findMethodDirect {
     playerPlaybackStartDescriptorFingerprint().instructionMatches[1].instruction.methodRef!!
 }
 
 internal val videoQualityMenuQualitiesField = findFieldDirect {
     Fingerprint(
-        classFingerprint = io.github.nexalloy.morphe.youtube.video.information.VideoQualitySetterFingerprint,
+        classFingerprint = VideoQualitySetterFingerprint,
         returnType = "V",
         parameters = listOf("[L", "I", "Z"),
         strings = listOf("menu_item_video_quality"),
         filters = listOf(fieldAccess(
             opcode = Opcode.IPUT_OBJECT,
             definingClass = VideoQualityItemOnClickFingerprint().declaredClass!!.descriptor,
-            type = "[" + io.github.nexalloy.morphe.youtube.shared.VideoQualityClass().descriptor
+            type = "[" + VideoQualityClass().descriptor
         ))
     ).instructionMatches.first().instruction.fieldRef!!
 }
@@ -608,13 +615,13 @@ internal val currentVideoFormatConstructor = findMethodDirect {
         filters = listOf(fieldAccess(
             opcode = Opcode.IPUT_OBJECT,
             definingClass = "this",
-            type = "[" + io.github.nexalloy.morphe.youtube.shared.VideoQualityClass().descriptor
+            type = "[" + VideoQualityClass().descriptor
         ))
     ).match().method
 }
 
 internal val currentVideoFormatField = findFieldDirect {
-    val type = io.github.nexalloy.morphe.shared.FormatStreamModelToStringFingerprint().declaredClass!!.descriptor
+    val type = FormatStreamModelToStringFingerprint().declaredClass!!.descriptor
     Fingerprint(
         definingClass = currentVideoFormatConstructor().declaredClass!!.descriptor,
         name = "<init>",

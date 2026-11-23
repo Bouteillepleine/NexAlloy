@@ -1,5 +1,6 @@
 package io.github.nexalloy.morphe.music.misc.backgroundplayback
 
+import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.Opcode
@@ -24,6 +25,7 @@ internal object BackgroundPlaybackDisableFingerprint : Fingerprint(
     )
 )
 
+@RequireAppVersion(maxVersion = "9.45.999")
 internal object KidsBackgroundPlaybackPolicyControllerFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "V",

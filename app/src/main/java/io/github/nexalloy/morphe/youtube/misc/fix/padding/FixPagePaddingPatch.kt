@@ -2,6 +2,7 @@ package io.github.nexalloy.morphe.youtube.misc.fix.padding
 
 import android.view.View
 import app.morphe.extension.youtube.patches.FixPagePaddingPatch
+import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.youtube.insertLiteralOverride
 import io.github.nexalloy.morphe.youtube.misc.playservice.VersionCheck
 import io.github.nexalloy.morphe.youtube.misc.playservice.is_20_26_or_greater
@@ -19,15 +20,13 @@ internal val fixPagePaddingPatch = patch {
         insertLiteralOverride(45794752L, false)
     }
 
+    // The keyboard branch reads its insets before constructing the bottom-margin update.
+    // Replace that margin where it is consumed, while leaving the other margins unchanged.
     if (is_21_46_or_greater) {
-        // The margin is set from the keyboard height without a branch, so the height is
-        // replaced where the page reads it.
-        PageBottomMarginFingerprint.hookMethod(scopedHook(::pageKeyboardInsetsMethod.method) {
+        PageBottomMarginFingerprint.hookMethod(scopedHook(::pageKeyboardHeightMethod.method) {
             after { it.result = FixPagePaddingPatch.getKeyboardMargin(it.result as Int) }
         })
     } else {
-        // The keyboard branch reads its insets before constructing the bottom-margin update.
-        // Replace that margin where it is consumed, while leaving the other margins unchanged.
         PageBottomMarginLegacyFingerprint.hookMethod(scopedHook(::pageKeyboardInsetsMethod.method) {
             before { outerParam.setObjectExtra("navigationKeyboardMargin", true) }
         })
@@ -41,7 +40,7 @@ internal val fixPagePaddingPatch = patch {
     }
 
     val setPadding = ::browseListSetPaddingMethod.method
-    val listFingerprints = mutableListOf<io.github.nexalloy.morphe.Fingerprint>(BrowseListBottomPaddingFingerprint)
+    val listFingerprints = mutableListOf<Fingerprint>(BrowseListBottomPaddingFingerprint)
     if (is_20_26_or_greater) listFingerprints += FeedListPaddingFingerprint
     listFingerprints.forEach { fingerprint ->
         fingerprint.hookMethod(scopedHook(setPadding) {

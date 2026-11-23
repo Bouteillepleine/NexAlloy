@@ -2,6 +2,7 @@
 
 package io.github.nexalloy.activity
 
+import android.R as AndroidR
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -57,7 +58,7 @@ class AppPatchSettingsActivity : Activity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
+        if (item.itemId == AndroidR.id.home) {
             onBackPressed()
             return true
         }

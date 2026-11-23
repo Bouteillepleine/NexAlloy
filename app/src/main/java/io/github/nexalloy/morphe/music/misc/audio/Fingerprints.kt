@@ -13,7 +13,7 @@ import io.github.nexalloy.morphe.methodCall
 import io.github.nexalloy.morphe.opcode
 
 
-@RequireAppVersion("9.32.00")
+@RequireAppVersion(minVersion = "9.32.00")
 internal object AllowExclusiveAudioPlaybackFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "Z",
@@ -30,7 +30,7 @@ internal object AllowExclusiveAudioPlaybackFingerprint : Fingerprint(
     )
 )
 
-@RequireAppVersion(maxVersion = "9.32.00")
+@RequireAppVersion(maxVersion = "9.31.99")
 internal object AllowExclusiveAudioPlaybackLegacyFingerprint : Fingerprint(
     accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
     returnType = "Z",
