@@ -1,13 +1,7 @@
 package io.github.nexalloy.morphe.youtube.video.quality
 
-import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.AllowAbstract
-import io.github.nexalloy.morphe.shared.FormatStreamModelToStringFingerprint
-import io.github.nexalloy.morphe.youtube.shared.PlaybackStartDescriptorToStringFingerprint
-import io.github.nexalloy.morphe.youtube.shared.VideoQualityClass
-import io.github.nexalloy.morphe.youtube.video.information.VideoQualitySetterFingerprint
-import io.github.nexalloy.morphe.youtube.video.information.setQualityFieldReference
-import org.luckypray.dexkit.DexKitBridge
+import io.github.nexalloy.RequireAppVersion
 import io.github.nexalloy.morphe.AccessFlags
 import io.github.nexalloy.morphe.Fingerprint
 import io.github.nexalloy.morphe.InstructionLocation.MatchAfterImmediately
@@ -31,7 +25,14 @@ import io.github.nexalloy.morphe.parameters
 import io.github.nexalloy.morphe.resourceLiteral
 import io.github.nexalloy.morphe.resourceMappings
 import io.github.nexalloy.morphe.returns
+import io.github.nexalloy.morphe.shared.FormatStreamModelToStringFingerprint
 import io.github.nexalloy.morphe.string
+import io.github.nexalloy.morphe.youtube.shared.PlaybackStartDescriptorToStringFingerprint
+import io.github.nexalloy.morphe.youtube.shared.VideoQualityClass
+import io.github.nexalloy.morphe.youtube.video.information.VideoQualitySetterFingerprint
+import io.github.nexalloy.morphe.youtube.video.information.setQualityFieldReference
+import io.github.nexalloy.morphe.youtube.video.videoid.ForegroundVideoIdFingerprint
+import org.luckypray.dexkit.DexKitBridge
 
 internal const val CLIENT_ABR_STATE_CLASS =
     "Lcom/google/android/apps/youtube/proto/ClientAbrStateOuterClass\$ClientAbrState;"
@@ -61,42 +62,31 @@ val advancedVideoQualitySettingField = findFieldDirect {
 /**
  * Video quality setting used for a video ID, sent with the SABR requests.
  */
-val getVideoQualitySettingMethod = findMethodDirect {
-    val type = VideoQualitySettingEnumFingerprint().declaredClass!!.descriptor
-    Fingerprint(
-        accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-        returnType = type,
-        parameters = listOf("Ljava/lang/String;"),
-        filters = listOf(
-            methodCall(definingClass = "Ljava/util/Map;", name = "get"),
-            checkCast(type)
-        )
-    )()
-}
+internal object GetVideoQualitySettingFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = { VideoQualitySettingEnumFingerprint().declaredClass!!.descriptor },
+    parameters = listOf("Ljava/lang/String;"),
+    filters = listOf(
+        methodCall(definingClass = "Ljava/util/Map;", name = "get"),
+        checkCast(type = { VideoQualitySettingEnumFingerprint().declaredClass!!.descriptor })
+    )
+)
 
 /**
  * Chooses the qualities allowed by the player, when the video starts and again while it plays:
  * the quality last selected in the quality menu, or an automatic quality.
  */
-val getVideoQualityConstraintMethod = findMethodDirect {
-    Fingerprint(
-        accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-        parameters = listOf("Z", "L", "Ljava/lang/String;", "L"),
-        filters = listOf(
-            methodCall(returnType = LastSelectedVideoQualityConstructorFingerprint().declaredClass!!.descriptor),
-            methodCall(reference = getVideoQualitySettingMethod())
-        )
-    ).match().method
-}
+internal object GetVideoQualityConstraintFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    parameters = listOf("Z", "L", "Ljava/lang/String;", "L"),
+    filters = listOf(
+        methodCall(returnType = { LastSelectedVideoQualityConstructorFingerprint().declaredClass!!.descriptor }),
+        methodCall(reference = { GetVideoQualitySettingFingerprint() })
+    )
+)
 
 val lastSelectedVideoQualityGetter = findMethodDirect {
-    Fingerprint(
-        definingClass = getVideoQualityConstraintMethod().declaredClass!!.descriptor,
-        name = getVideoQualityConstraintMethod().name,
-        filters = listOf(
-            methodCall(returnType = LastSelectedVideoQualityConstructorFingerprint().declaredClass!!.descriptor)
-        )
-    ).instructionMatches.first().instruction.methodRef!!
+    GetVideoQualityConstraintFingerprint.instructionMatches.first().instruction.methodRef!!
 }
 
 val lastSelectedVideoQualityFields = findFieldListDirect {
@@ -118,18 +108,16 @@ val InitialResolutionField = findFieldDirect {
     PlaybackStartParametersToStringFingerprint().findFieldFromToString(FIXED_RESOLUTION_STRING)
 }
 
-val PlaybackStartParametersInit = findMethodDirect {
-    Fingerprint(
-        classFingerprint = PlaybackStartParametersToStringFingerprint,
-        name = "<init>",
-        filters = listOf(
-            fieldAccess(
-                opcode = Opcode.IPUT_OBJECT,
-                reference = InitialResolutionField()
-            )
+internal object PlaybackStartParametersInitFingerprint : Fingerprint(
+    classFingerprint = PlaybackStartParametersToStringFingerprint,
+    name = "<init>",
+    filters = listOf(
+        fieldAccess(
+            opcode = Opcode.IPUT_OBJECT,
+            reference = { InitialResolutionField() }
         )
-    )()
-}
+    )
+)
 
 private object VideoQualityItemOnClickParentFingerprint : Fingerprint(
     returnType = "V",
@@ -332,117 +320,31 @@ internal object AsyncMediaFetchControllerSetVideoFormatsFingerprint : Fingerprin
     )
 )
 
-internal val setVideoQualityResolutionMethod = findMethodDirect {
-    Fingerprint(
-        definingClass = setQualityFieldReference().typeSign,
-        returnType = "V",
-        parameters = listOf("I")
-    ).match().method
-}
+internal object SetVideoQualityResolutionFingerprint : Fingerprint(
+    definingClass = { setQualityFieldReference().typeSign },
+    returnType = "V",
+    parameters = listOf("I")
+)
 
 internal val videoQualityItemSetResolutionMethods = findMethodListDirect {
     Fingerprint(
         name = "onItemClick",
         returnType = "V",
         parameters = listOf("Landroid/widget/AdapterView;", "Landroid/view/View;", "I", "J"),
-        filters = listOf(methodCall(reference = setVideoQualityResolutionMethod()))
+        filters = listOf(methodCall(reference = SetVideoQualityResolutionFingerprint()))
     ).matchAll().map { it.method }
 }
 
 internal const val BUFFER_MANAGER_CLASS =
     "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/BufferManagerImpl;"
 
-internal const val MEDIA_SEGMENT_HOLDER_LEGACY_CLASS =
-    "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/MediaSegmentHolder;"
-
-/**
- * 21.46+ obfuscates the classes of the media player.
- *
- * The player gets the buffered media of a track from the buffer manager,
- * and clears it after the segment that contains a time.
- */
-@RequireAppVersion("21.46.000")
-internal object MediaSegmentHolderDiscardBufferAfterSegmentFingerprint : Fingerprint(
-    filters = listOf(
-        string("discardBufferAfterCurrentSegment with disposed BufferManager"),
-        // Returns the buffered media of a track.
-        methodCall(
-            returnType = "L",
-            parameters = listOf("L"),
-            location = MatchAfterWithin(10)
-        ),
-        opcode(Opcode.MOVE_RESULT_OBJECT, location = MatchAfterImmediately()),
-        methodCall(
-            returnType = "V",
-            parameters = listOf("J"),
-            location = MatchAfterImmediately()
-        )
-    )
-)
-
-/**
- * 21.17 - 21.45
- *
- * The call to the method of the buffered media of a track that clears it after the segment
- * that contains a time. Before 21.44 it is called from a method of the buffer manager,
- * and 21.44+ inlines that method into the player.
- */
-@RequireAppVersion("21.17.000", "21.46.000")
-internal object MediaSegmentHolderDiscardBufferAfterSegmentLegacyFingerprint : Fingerprint(
-    filters = listOf(
-        string("discardBufferAfterCurrentSegment with disposed BufferManager"),
-        methodCall(
-            definingClass = MEDIA_SEGMENT_HOLDER_LEGACY_CLASS,
-            returnType = "V",
-            parameters = listOf("J")
-        )
-    )
-)
-
-@get:RequireAppVersion("21.17.000")
-internal val mediaSegmentHolderDiscardBufferAfterSegmentMethod = findMethodDirect {
-    runCatching {
-        MediaSegmentHolderDiscardBufferAfterSegmentFingerprint.instructionMatches.last().instruction.methodRef!!
-    }.getOrElse {
-        MediaSegmentHolderDiscardBufferAfterSegmentLegacyFingerprint.instructionMatches.last().instruction.methodRef!!
-    }
-}
-
-internal const val SAMPLE_HOLDER_CLASS =
-    "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/SampleHolder;"
-
-/**
- * 21.17 - 21.45
- *
- * The method of the buffer manager that returns the buffered media of a track.
- */
-@RequireAppVersion("21.17.000", "21.46.000")
-internal object BufferManagerGetMediaSegmentHolderLegacyFingerprint : Fingerprint(
-    definingClass = BUFFER_MANAGER_CLASS,
-    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
-    returnType = MEDIA_SEGMENT_HOLDER_LEGACY_CLASS,
-    parameters = listOf("L")
-)
-
-@get:RequireAppVersion("21.17.000")
-internal val bufferManagerGetMediaSegmentHolderMethod = findMethodDirect {
-    runCatching {
-        MediaSegmentHolderDiscardBufferAfterSegmentFingerprint.instructionMatches[1].instruction.methodRef!!
-    }.getOrElse {
-        BufferManagerGetMediaSegmentHolderLegacyFingerprint()
-    }
-}
-
-context(dexkit: DexKitBridge)
-private fun bufferManagerClass() =
-    bufferManagerGetMediaSegmentHolderMethod(dexkit).declaredClass!!.descriptor
-
 /**
  * The method of the player that clears the buffered media of a track, and buffers it again
  * from the time the video started or was last seeked to.
  */
-context(dexkit: DexKitBridge)
-private fun playbackControllerClearBufferFingerprint() = Fingerprint(
+@RequireAppVersion("21.17.000", "21.46.000")
+internal object PlaybackControllerClearBufferFingerprint : Fingerprint(
+    definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/PlaybackControllerWrapper;",
     returnType = "V",
     filters = listOf(
         // Stops the media requests.
@@ -450,16 +352,50 @@ private fun playbackControllerClearBufferFingerprint() = Fingerprint(
         fieldAccess(
             opcode = Opcode.IGET_OBJECT,
             definingClass = "this",
-            type = bufferManagerClass()
+            type = BUFFER_MANAGER_CLASS
         ),
         string("setStartTimeUs with disposed BufferManager")
     )
 )
 
-@get:RequireAppVersion("21.17.000")
-internal val playbackControllerClearBufferMethod = findMethodDirect {
-    playbackControllerClearBufferFingerprint().match().method
+internal const val MEDIA_SEGMENT_HOLDER_CLASS =
+    "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/MediaSegmentHolder;"
+
+/**
+ * The call to the method of the buffered media of a track that clears it after the segment
+ * that contains a time. Before 21.44 it is called from a method of the buffer manager,
+ * and 21.44+ inlines that method into the player.
+ */
+@RequireAppVersion("21.17.000", "21.46.000")
+internal object MediaSegmentHolderDiscardBufferAfterSegmentFingerprint : Fingerprint(
+    filters = listOf(
+        string("discardBufferAfterCurrentSegment with disposed BufferManager"),
+        methodCall(
+            definingClass = MEDIA_SEGMENT_HOLDER_CLASS,
+            returnType = "V",
+            parameters = listOf("J")
+        )
+    )
+)
+
+@get:RequireAppVersion("21.17.000", "21.46.000")
+internal val mediaSegmentHolderDiscardBufferAfterSegmentMethod = findMethodDirect {
+    MediaSegmentHolderDiscardBufferAfterSegmentFingerprint.instructionMatches.last().instruction.methodRef!!
 }
+
+internal const val SAMPLE_HOLDER_CLASS =
+    "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/SampleHolder;"
+
+/**
+ * The method of the buffer manager that returns the buffered media of a track.
+ */
+@RequireAppVersion("21.17.000", "21.46.000")
+internal object BufferManagerGetMediaSegmentHolderFingerprint : Fingerprint(
+    definingClass = BUFFER_MANAGER_CLASS,
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = MEDIA_SEGMENT_HOLDER_CLASS,
+    parameters = listOf("L")
+)
 
 /**
  * 21.17 - 21.42
@@ -484,40 +420,31 @@ internal object SampleHolderDiscardBufferBeforeSegmentLegacyFingerprint : Finger
  *
  * Same as [SampleHolderDiscardBufferBeforeSegmentLegacyFingerprint],
  * with the parameters: time, playback time and size of the media kept before the playback time.
- *
- * 21.46+ declares the method in two classes, only one of which the media source clears
- * the buffered media with.
  */
-@get:RequireAppVersion("21.43.000")
-internal val sampleHolderDiscardBufferBeforeSegmentMethod = findMethodDirect {
-    val candidates = Fingerprint(
-        returnType = "V",
-        parameters = listOf("J", "J", "J"),
-        filters = listOf(
-            methodCall(definingClass = "this", returnType = "Z", parameters = listOf("J", "J", "J")),
-            methodCall(definingClass = "this", returnType = "V", parameters = listOf("J", "J", "J"))
-        )
-    ).matchAll().map { it.method }
-
-    candidates.singleOrNull() ?: run {
-        val calls = mediaPushMediaSourceDiscardBufferMethod().instructions
-            .mapNotNull { it.methodRef?.descriptor }
-        candidates.single { it.descriptor in calls }
-    }
-}
+@RequireAppVersion("21.43.000")
+@StrictQuery
+internal object SampleHolderDiscardBufferBeforeSegmentFingerprint : Fingerprint(
+    returnType = "V",
+    parameters = listOf("J", "J", "J"),
+    filters = listOf(
+        methodCall(definingClass = "this", returnType = "Z", parameters = listOf("J", "J", "J")),
+        methodCall(definingClass = "this", returnType = "V", parameters = listOf("J", "J", "J"))
+    )
+)
 
 /**
  * The method of the buffered media of a track that saves the end time of its first segment.
  * The media before a time is cleared only if the time is after it.
  */
-internal fun mediaSegmentHolderSetFirstSegmentEndTimeFingerprint(mediaSegmentHolderClass: String) = Fingerprint(
-    definingClass = mediaSegmentHolderClass,
+@RequireAppVersion("21.17.000", "21.46.000")
+internal object MediaSegmentHolderSetFirstSegmentEndTimeFingerprint : Fingerprint(
+    definingClass = MEDIA_SEGMENT_HOLDER_CLASS,
     returnType = "V",
     parameters = listOf(),
     filters = listOf(
         methodCall(smali = "Ljava/util/List;->isEmpty()Z"),
-        // End time of the buffered media segment.
         methodCall(
+            definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/BufferedMediaSegment;",
             returnType = "J",
             parameters = listOf()
         ),
@@ -529,43 +456,35 @@ internal fun mediaSegmentHolderSetFirstSegmentEndTimeFingerprint(mediaSegmentHol
  * The method of the media source that clears the media buffered before the playback time,
  * called by the player while the video is loaded.
  */
-context(dexkit: DexKitBridge)
-private fun mediaPushMediaSourceDiscardBufferFingerprint() = Fingerprint(
+@RequireAppVersion("21.17.000", "21.46.000")
+internal object MediaPushMediaSourceDiscardBufferFingerprint : Fingerprint(
+    definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/mediapush/MediaPushMediaSource;",
     returnType = "V",
     parameters = listOf("J"),
     filters = listOf(
-        // Time of a live stream that is not set.
-        fieldAccess(opcode = Opcode.SGET_WIDE, type = "J"),
         fieldAccess(
-            opcode = Opcode.IGET_OBJECT,
-            definingClass = "this",
-            type = bufferManagerClass()
+            opcode = Opcode.SGET_WIDE,
+            definingClass = "Lcom/google/android/libraries/youtube/media/player/exo2/platypus/live/LiveTimeline;"
         ),
+        fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = "this", type = BUFFER_MANAGER_CLASS),
         methodCall(smali = "Ljava/lang/Math;->max(JJ)J")
     )
 )
 
-@get:RequireAppVersion("21.17.000")
-internal val mediaPushMediaSourceDiscardBufferMethod = findMethodDirect {
-    mediaPushMediaSourceDiscardBufferFingerprint().match().method
-}
 
-
-internal val playbackStartInitialResolutionMethod = findMethodDirect {
-    Fingerprint(
-        returnType = "Ljava/lang/Integer;",
-        parameters = listOf(),
-        filters = listOf(
-            fieldAccess(opcode = Opcode.IGET_OBJECT, reference = InitialResolutionField()),
-            methodCall(smali = "Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;"),
-            checkCast("Ljava/lang/Integer;")
-        )
-    ).match().method
-}
+internal object PlaybackStartInitialResolutionFingerprint : Fingerprint(
+    returnType = "Ljava/lang/Integer;",
+    parameters = listOf(),
+    filters = listOf(
+        fieldAccess(opcode = Opcode.IGET_OBJECT, reference = { InitialResolutionField() }),
+        methodCall(smali = "Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;"),
+        checkCast("Ljava/lang/Integer;")
+    )
+)
 
 context(dexkit: DexKitBridge)
 private fun playerPlaybackStartDescriptorFingerprint() = Fingerprint(
-    definingClass = playbackStartInitialResolutionMethod(dexkit).declaredClass!!.descriptor,
+    definingClass = PlaybackStartInitialResolutionFingerprint().declaredClass!!.descriptor,
     filters = listOf(
         fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = "this"),
         methodCall(
@@ -607,23 +526,21 @@ internal object CurrentAudioVideoFormatToStringFingerprint : Fingerprint(
     strings = listOf("currentVideoFormat=")
 )
 
-internal val currentVideoFormatConstructor = findMethodDirect {
-    Fingerprint(
-        classFingerprint = CurrentAudioVideoFormatToStringFingerprint,
-        name = "<init>",
-        returnType = "V",
-        filters = listOf(fieldAccess(
-            opcode = Opcode.IPUT_OBJECT,
-            definingClass = "this",
-            type = "[" + VideoQualityClass().descriptor
-        ))
-    ).match().method
-}
+internal object CurrentVideoFormatConstructorFingerprint : Fingerprint(
+    classFingerprint = CurrentAudioVideoFormatToStringFingerprint,
+    name = "<init>",
+    returnType = "V",
+    filters = listOf(fieldAccess(
+        opcode = Opcode.IPUT_OBJECT,
+        definingClass = "this",
+        type = { "[" + VideoQualityClass().descriptor }
+    ))
+)
 
 internal val currentVideoFormatField = findFieldDirect {
     val type = FormatStreamModelToStringFingerprint().declaredClass!!.descriptor
     Fingerprint(
-        definingClass = currentVideoFormatConstructor().declaredClass!!.descriptor,
+        definingClass = CurrentVideoFormatConstructorFingerprint().declaredClass!!.descriptor,
         name = "<init>",
         filters = listOf(fieldAccess(opcode = Opcode.IPUT_OBJECT, type = type))
     ).instructionMatches.first().instruction.fieldRef!!
@@ -634,34 +551,183 @@ internal val videoTrackTypeField = findFieldDirect {
     PlaybackControllerSetVideoFormatsFingerprint.instructionMatches.last().instruction.fieldRef!!
 }
 
-@get:RequireAppVersion("21.17.000")
+@get:RequireAppVersion("21.17.000", "21.46.000")
 internal val stopMediaRequestsMethod = findMethodDirect {
-    playbackControllerClearBufferFingerprint().instructionMatches[0].instruction.methodRef!!
+    PlaybackControllerClearBufferFingerprint.instructionMatches[0].instruction.methodRef!!
 }
 
-@get:RequireAppVersion("21.17.000")
+@get:RequireAppVersion("21.17.000", "21.46.000")
 internal val playbackBufferManagerField = findFieldDirect {
-    playbackControllerClearBufferFingerprint().instructionMatches[1].instruction.fieldRef!!
+    PlaybackControllerClearBufferFingerprint.instructionMatches[1].instruction.fieldRef!!
 }
 
-@get:RequireAppVersion("21.17.000")
+@get:RequireAppVersion("21.17.000", "21.46.000")
 internal val firstSegmentEndTimeField = findFieldDirect {
-    mediaSegmentHolderSetFirstSegmentEndTimeFingerprint(
-        bufferManagerGetMediaSegmentHolderMethod().returnType!!.descriptor
-    ).instructionMatches.last().instruction.fieldRef!!
+    MediaSegmentHolderSetFirstSegmentEndTimeFingerprint.instructionMatches.last().instruction.fieldRef!!
 }
 
-@get:RequireAppVersion("21.17.000")
+@get:RequireAppVersion("21.17.000", "21.46.000")
 internal val mediaSourceBufferManagerField = findFieldDirect {
-    mediaPushMediaSourceDiscardBufferFingerprint().instructionMatches[1].instruction.fieldRef!!
+    MediaPushMediaSourceDiscardBufferFingerprint.instructionMatches[1].instruction.fieldRef!!
 }
 
-@get:RequireAppVersion("21.17.000")
+@get:RequireAppVersion("21.17.000", "21.46.000")
 internal val mediaSourcePrepareDiscardMethod = findMethodDirect {
-    val match = mediaPushMediaSourceDiscardBufferFingerprint().match()
+    val match = MediaPushMediaSourceDiscardBufferFingerprint.match()
     match.method.instructions.take(match.instructionMatches[1].index).last {
         it.methodRef?.declaredClass == match.method.declaredClass &&
             it.methodRef?.paramTypes?.map { p -> p.descriptor } == listOf("J") &&
             it.methodRef?.returnType?.descriptor == "V"
     }.methodRef!!
+}
+
+internal fun getVideoQualitySettingChangedEventFingerprint(
+    videoQualitySettingType: String
+) = Fingerprint(
+    name = "<init>",
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.CONSTRUCTOR),
+    parameters = listOf(videoQualitySettingType, "Z"),
+    filters = listOf(
+        fieldAccess(
+            opcode = Opcode.IPUT_OBJECT,
+            definingClass = "this",
+            type = videoQualitySettingType
+        ),
+        literal(-2)
+    )
+)
+
+internal fun getQualityMenuSelectedQualityFingerprint(
+    videoQualityEventType: String,
+    videoQualitySettingType: String
+) = Fingerprint(
+    filters = listOf(
+        methodCall(smali = "Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;"),
+        fieldAccess( // Resolution of the quality event.
+            opcode = Opcode.IGET,
+            definingClass = videoQualityEventType,
+            type = "I",
+            location = MatchAfterWithin(8)
+        ),
+        methodCall(
+            definingClass = "Lj$/util/stream/Stream;",
+            name = "filter",
+            location = MatchAfterWithin(8)
+        ),
+        methodCall(
+            smali = "Lj$/util/Optional;->orElse(Ljava/lang/Object;)Ljava/lang/Object;",
+            location = MatchAfterWithin(5)
+        ),
+        fieldAccess( // Video quality setting of the quality event.
+            opcode = Opcode.IGET_OBJECT,
+            definingClass = videoQualityEventType,
+            type = videoQualitySettingType
+        )
+    )
+)
+
+internal fun getVideoQualityConstraintEqualsFingerprint(constraintType: String) = object : Fingerprint(
+    definingClass = constraintType,
+    name = "equals",
+    filters = listOf(
+        fieldAccess( // Quality range.
+            opcode = Opcode.IGET_OBJECT,
+            definingClass = "this"
+        )
+    )
+) {}
+
+internal object VideoQualityRangeConstructorFingerprint : Fingerprint(
+    definingClass = { qualityConstraintRangeField().type.descriptor },
+    name = "<init>",
+    parameters = listOf("I", "I", "I", "L"),
+    filters = listOf(
+        fieldAccess( // Highest quality.
+            opcode = Opcode.IPUT,
+            definingClass = "this",
+            type = "I"
+        ),
+        fieldAccess( // Lowest quality.
+            opcode = Opcode.IPUT,
+            definingClass = "this",
+            type = "I",
+            location = MatchAfterImmediately()
+        ),
+        fieldAccess( // Mode.
+            opcode = Opcode.IPUT,
+            definingClass = "this",
+            type = "I",
+            location = MatchAfterImmediately()
+        ),
+        fieldAccess( // Formats.
+            opcode = Opcode.IPUT_OBJECT,
+            definingClass = "this",
+            location = MatchAfterImmediately()
+        )
+    )
+)
+
+internal fun getVideoQualityConstraintConstructorFingerprint(
+    constraintType: String,
+    rangeType: String
+) = object : Fingerprint(
+    definingClass = constraintType,
+    name = "<init>",
+    parameters = listOf(rangeType, rangeType, "Z", "Ljava/lang/String;", "I", "I", "J", "I", "I", "L"),
+    filters = listOf(
+        fieldAccess(
+            opcode = Opcode.IPUT_WIDE,
+            definingClass = "this",
+            type = "J"
+        ),
+        fieldAccess( // Last field.
+            opcode = Opcode.IPUT_OBJECT,
+            definingClass = "this"
+        )
+    )
+) {}
+
+internal object FixedVideoQualityConstraintFingerprint : Fingerprint(
+    definingClass = { GetVideoQualityConstraintFingerprint().returnType!!.descriptor },
+    returnType = { GetVideoQualityConstraintFingerprint().returnType!!.descriptor },
+    parameters = { listOf("I") }
+)
+
+internal val qualityConstraintRangeField = findFieldDirect {
+    getVideoQualityConstraintEqualsFingerprint(GetVideoQualityConstraintFingerprint().returnType!!.descriptor)
+        .instructionMatches.first().instruction.fieldRef!!
+}
+internal val qualityRangeFields = findFieldListDirect {
+    VideoQualityRangeConstructorFingerprint.instructionMatches.map { it.instruction.fieldRef!! }
+}
+internal val qualityConstraintLastField = findFieldDirect {
+    getVideoQualityConstraintConstructorFingerprint(
+        GetVideoQualityConstraintFingerprint().returnType!!.descriptor, qualityConstraintRangeField().type.descriptor
+    ).instructionMatches.last().instruction.fieldRef!!
+}
+internal val sabrFormatSelectionMethod = findMethodDirect {
+    val constraint = GetVideoQualityConstraintFingerprint().returnType!!.descriptor
+    Fingerprint(
+        accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.STATIC),
+        filters = listOf(methodCall(definingClass = constraint, returnType = "Z", parameters = listOf("I")))
+    ).matchAll().map { it.method }.filter { method ->
+        val types = method.paramTypes.map { it.descriptor }
+        val index = types.indexOf("Lcom/google/android/apps/youtube/proto/streaming/SelectableFormatsOuterClass\$SelectableFormats;")
+        types.firstOrNull() == constraint && index >= 2 &&
+                types.getOrNull(index - 2) == "Ljava/util/List;" &&
+                types.getOrNull(index - 1) == "Ljava/util/List;" &&
+                types.getOrNull(index + 1) == "Lcom/google/android/apps/youtube/proto/streaming/MediaCapabilitiesOuterClass\$MediaCapabilities;"
+    }.single()
+}
+internal val playingVideoCpnField = findFieldDirect {
+    val method = ForegroundVideoIdFingerprint()
+    Fingerprint(
+        definingClass = method.declaredClass!!.descriptor,
+        name = method.name,
+        parameters = method.paramTypes.map { it.descriptor },
+        filters = listOf(
+            fieldAccess(opcode = Opcode.IGET_OBJECT, definingClass = method.paramTypes.first().descriptor, type = "Ljava/lang/String;"),
+            fieldAccess(opcode = Opcode.IPUT_OBJECT, definingClass = "this", type = "Ljava/lang/String;", location = MatchAfterImmediately())
+        )
+    ).instructionMatches.last().instruction.fieldRef!!
 }

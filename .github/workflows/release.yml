@@ -1,94 +1,64 @@
 name: Android Release CI
 
-# Releases are cut by tagging a commit, so this works from any branch of the fork —
-# tag a MyNexAlloy commit and the release is built from it.
 on:
-  push:
-    tags:
-      - '*.*.*'
+  pull_request:
+    branches: [main]
+    types: [closed]
 
 jobs:
   build:
-
+    if: >-
+      github.event.pull_request.merged &&
+      github.event.pull_request.head.ref == 'release-next' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # The secrets context is not available in a step-level `if`.
-    env:
-      HAS_KEYSTORE: ${{ secrets.KEYSTORE != '' }}
-      HAS_YOUTUBE_APK: ${{ secrets.YOUTUBE_APK_URL != '' }}
-      HAS_MUSIC_APK: ${{ secrets.YT_MUSIC_APK_URL != '' }}
 
     steps:
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          submodules: true
 
-    - name: set up JDK
-      uses: actions/setup-java@v5
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
+      - name: Read release version
+        id: version
+        run: |
+          VERSION_CODE=$(awk '$1 == "versionCode" {print $3}' app/build.gradle.kts)
+          echo "version=2.0.$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
 
-    # Publishing an unsigned APK is worse than publishing nothing, so stop before the build
-    # rather than shipping something nobody can install.
-    - name: Require signing key
-      if: env.HAS_KEYSTORE != 'true'
-      run: |
-        echo '::error::No KEYSTORE secret is configured; a release cannot be signed.'
-        exit 1
+      - name: Write key
+        run: |
+          echo KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }} > signing.properties
+          echo KEYSTORE_ALIAS=${{ secrets.KEYSTORE_ALIAS }} >> signing.properties
+          echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
+          echo KEYSTORE_FILE=../key.jks >> signing.properties
+          echo ${{ secrets.KEYSTORE }} | base64 --decode > key.jks
 
-    - name: Write key
-      run: |
-        echo KEYSTORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' > signing.properties
-        echo KEYSTORE_ALIAS='${{ secrets.KEYSTORE_ALIAS }}' >> signing.properties
-        echo KEYSTORE_ALIAS_PASSWORD='${{ secrets.KEYSTORE_ALIAS_PASSWORD }}' >> signing.properties
-        echo KEYSTORE_FILE=../key.jks >> signing.properties
-        echo '${{ secrets.KEYSTORE }}' | base64 --decode > key.jks
+      - name: Build Release
+        run: ./gradlew assembleRelease
 
-    # See android.yml for why the APKs come from a location you control rather than a mirror.
-    - name: Fetch target APKs
-      if: env.HAS_YOUTUBE_APK == 'true' || env.HAS_MUSIC_APK == 'true'
-      run: |
-        set -euo pipefail
-        mkdir -p app/binaries
-        if [ -n '${{ secrets.YOUTUBE_APK_URL }}' ]; then
-          curl -fsSL '${{ secrets.YOUTUBE_APK_URL }}' -o app/binaries/com.google.android.youtube.apk
-        fi
-        if [ -n '${{ secrets.YT_MUSIC_APK_URL }}' ]; then
-          curl -fsSL '${{ secrets.YT_MUSIC_APK_URL }}' -o app/binaries/com.google.android.apps.youtube.music.apk
-        fi
-        ls -la app/binaries/
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          APK="app/build/outputs/apk/release/NexAlloy-$VERSION.apk"
+          mv app/build/outputs/apk/release/app-release.apk "$APK"
+          gh release create "$VERSION" "$APK" --prerelease --notes ''
 
-    # Gates the release: if a fingerprint no longer resolves against the target APK, the patch
-    # is broken for that app version and the release must not go out. No APKs configured means
-    # the task skips, and the release proceeds unverified.
-    - name: Fingerprint tests
-      run: ./gradlew :app:testDebugUnitTest
-
-    - name: Upload fingerprint test report
-      if: always()
-      uses: actions/upload-artifact@v7
-      with:
-        name: nexalloy-release-fingerprint-report
-        path: app/build/reports/tests/testDebugUnitTest
-        if-no-files-found: ignore
-
-    - name: Build Release
-      run: ./gradlew assembleRelease
-
-    # Deliberately not --prerelease: the in-app update check reads /releases/latest, and GitHub
-    # resolves that to the newest release that is *not* a prerelease. Publishing every tag as a
-    # prerelease made that endpoint return 404 (or a stale release), so users were told they were
-    # up to date no matter how many versions they were behind.
-    - name: Publish release
-      run: |
-        cd app/build/outputs/apk/release/
-        mv app-release.apk "NexAlloy-${{ github.ref_name }}.apk"
-        gh release create "${{ github.ref_name }}" "NexAlloy-${{ github.ref_name }}.apk" --title "${{ github.ref_name }}" --generate-notes
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  prepare-next:
+    needs: build
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/release-pr.yml
